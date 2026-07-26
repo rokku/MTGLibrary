@@ -43,4 +43,60 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
+  /* Binder page-turn: a leaf hinged on the spine (left edge) swings over the
+     page beneath it. The front face carries the outgoing page; the back face is
+     plain "paper" seen mid-turn. */
+  .binder-stage {
+    perspective: 1600px;
+  }
+  .binder-leaf {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    transform-origin: left center;
+    backface-visibility: hidden;
+    will-change: transform;
+  }
+  .binder-leaf--next {
+    animation: binder-flip-next var(--binder-flip, 480ms) ease-in forwards;
+  }
+  .binder-leaf--prev {
+    animation: binder-flip-prev var(--binder-flip, 480ms) ease-out forwards;
+  }
+  .binder-leaf__face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+  }
+  .binder-leaf__back {
+    @apply rounded-lg bg-surface-1;
+    transform: rotateY(180deg);
+    box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.5);
+  }
+}
+
+@keyframes binder-flip-next {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(-180deg);
+  }
+}
+
+@keyframes binder-flip-prev {
+  from {
+    transform: rotateY(-180deg);
+  }
+  to {
+    transform: rotateY(0deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .binder-leaf--next,
+  .binder-leaf--prev {
+    animation-duration: 1ms;
+  }
 }

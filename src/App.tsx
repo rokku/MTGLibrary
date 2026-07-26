@@ -8,6 +8,8 @@ import { Import } from './routes/Import';
 import { CardDetail } from './routes/CardDetail';
 import { Settings } from './routes/Settings';
 import { Welcome } from './routes/Welcome';
+import { Binder } from './routes/Binder';
+import { BinderSet } from './routes/BinderSet';
 
 /** Slim banner shown while the Scryfall catalogue loads into IndexedDB. */
 function CatalogueBanner() {
@@ -83,6 +85,8 @@ export default function App() {
             <Route path="/" element={settings.firstRunDone ? <Library /> : <Navigate to="/welcome" replace />} />
             <Route path="/welcome" element={<Welcome />} />
             <Route path="/import" element={<Import />} />
+            <Route path="/binder" element={<Binder />} />
+            <Route path="/binder/:setCode" element={<BinderSet />} />
             <Route path="/card/:catalogueId" element={<CardDetail />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
