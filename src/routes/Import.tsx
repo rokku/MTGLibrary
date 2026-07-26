@@ -14,7 +14,7 @@ import {
   type ParsedCsv,
 } from '../lib/csv';
 import { downloadImages, type ImageProgress } from '../lib/image-cache';
-import { commitImport } from '../lib/collection';
+import { commitImport, syncImport, type SyncSummary } from '../lib/collection';
 
 type Step = 'upload' | 'map' | 'match' | 'images' | 'commit' | 'done';
 
@@ -61,6 +61,7 @@ export function Import() {
   const [committing, setCommitting] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const [existingCount, setExistingCount] = useState(0);
+  const [syncSummary, setSyncSummary] = useState<SyncSummary | null>(null);
 
   // ── Step 1: upload ────────────────────────────────────────────────
   async function handleFile(file: File) {
@@ -130,11 +131,17 @@ export function Import() {
   }
 
   // ── Step 5: commit ────────────────────────────────────────────────
-  async function commit(mode: 'merge' | 'replace') {
+  async function commit(mode: 'merge' | 'replace' | 'sync') {
     const matched = results.filter((r) => r.status === 'matched' && r.catalogueId);
     setCommitting(true);
     try {
-      await commitImport(matched, filename, mode, imgStats ?? { fetched: 0, failed: 0 });
+      if (mode === 'sync') {
+        const { summary } = await syncImport(matched, filename, imgStats ?? { fetched: 0, failed: 0 });
+        setSyncSummary(summary);
+      } else {
+        setSyncSummary(null);
+        await commitImport(matched, filename, mode, imgStats ?? { fetched: 0, failed: 0 });
+      }
       setStep('done');
     } catch (e) {
       setError((e as Error).message);
@@ -405,27 +412,49 @@ export function Import() {
             </div>
 
             {existingCount > 0 && (
-              <div className="flex items-start gap-2 rounded-lg bg-amber-950/50 p-3 text-sm text-amber-200">
-                <ExclamationTriangleIcon className="mt-0.5 h-5 w-5 flex-shrink-0" />
-                <span>You already have {existingCount} cards. Merge adds to them; replace wipes them first.</span>
+              <div className="flex items-start gap-2 rounded-lg bg-surface-1 p-3 text-sm text-neutral-300">
+                <ExclamationTriangleIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-400" />
+                <span>
+                  You already have {existingCount} cards. <b>Sync</b> makes your collection match this
+                  CSV — adding new cards, updating quantities, and removing cards no longer listed, while
+                  keeping your tags, notes, and any copies you added by hand.
+                </span>
               </div>
             )}
 
-            <button
-              onClick={() => commit('merge')}
-              disabled={committing}
-              className="tap-target w-full rounded-lg py-3 font-semibold text-black disabled:opacity-40"
-              style={{ backgroundColor: settings.accent }}
-            >
-              {existingCount > 0 ? 'Merge into collection' : 'Add to collection'}
-            </button>
-            {existingCount > 0 && (
+            {existingCount > 0 ? (
+              <>
+                <button
+                  onClick={() => commit('sync')}
+                  disabled={committing}
+                  className="tap-target w-full rounded-lg py-3 font-semibold text-black disabled:opacity-40"
+                  style={{ backgroundColor: settings.accent }}
+                >
+                  Sync to match CSV
+                </button>
+                <button
+                  onClick={() => commit('merge')}
+                  disabled={committing}
+                  className="tap-target w-full rounded-lg bg-surface-2 py-3 font-semibold disabled:opacity-40 active:bg-surface-3"
+                >
+                  Merge (add as extra copies)
+                </button>
+                <button
+                  onClick={() => commit('replace')}
+                  disabled={committing}
+                  className="tap-target w-full rounded-lg border border-red-800 py-3 font-semibold text-red-300 disabled:opacity-40"
+                >
+                  Replace entire collection
+                </button>
+              </>
+            ) : (
               <button
-                onClick={() => commit('replace')}
+                onClick={() => commit('merge')}
                 disabled={committing}
-                className="tap-target w-full rounded-lg border border-red-800 py-3 font-semibold text-red-300 disabled:opacity-40"
+                className="tap-target w-full rounded-lg py-3 font-semibold text-black disabled:opacity-40"
+                style={{ backgroundColor: settings.accent }}
               >
-                Replace entire collection
+                Add to collection
               </button>
             )}
           </div>
@@ -435,10 +464,35 @@ export function Import() {
         {step === 'done' && (
           <div className="flex flex-col items-center gap-4 pt-16 text-center">
             <CheckCircleIcon className="h-16 w-16 text-green-500" />
-            <p className="text-lg font-semibold">Imported {matchedCount} cards</p>
-            <p className="text-sm text-neutral-400">
-              {imgStats?.fetched ?? 0} images cached, {skippedCount} skipped
-            </p>
+            {syncSummary ? (
+              <>
+                <p className="text-lg font-semibold">Collection synced</p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="rounded-lg bg-surface-1 px-4 py-2">
+                    <span className="font-bold text-green-400">{syncSummary.added}</span> added
+                  </div>
+                  <div className="rounded-lg bg-surface-1 px-4 py-2">
+                    <span className="font-bold text-sky-400">{syncSummary.updated}</span> updated
+                  </div>
+                  <div className="rounded-lg bg-surface-1 px-4 py-2">
+                    <span className="font-bold text-red-400">{syncSummary.removed}</span> removed
+                  </div>
+                  <div className="rounded-lg bg-surface-1 px-4 py-2">
+                    <span className="font-bold text-neutral-300">{syncSummary.unchanged}</span> unchanged
+                  </div>
+                </div>
+                <p className="text-sm text-neutral-500">
+                  {imgStats?.fetched ?? 0} new images cached{skippedCount > 0 && `, ${skippedCount} skipped`}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-lg font-semibold">Imported {matchedCount} cards</p>
+                <p className="text-sm text-neutral-400">
+                  {imgStats?.fetched ?? 0} images cached, {skippedCount} skipped
+                </p>
+              </>
+            )}
             <button
               onClick={() => navigate('/')}
               className="tap-target rounded-lg px-6 py-3 font-semibold text-black"

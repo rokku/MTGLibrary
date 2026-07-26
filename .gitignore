@@ -13,3 +13,6 @@ public/data/manifest.json
 !.vscode/extensions.json
 .idea/
 *.log
+
+# Local Netlify folder
+.netlify
