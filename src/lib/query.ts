@@ -1,4 +1,5 @@
 import { db, RARITY_ORDER, type Condition, type Finish, type OwnedCard } from './db';
+import { matchesQuery, parseQuery, type EnrichMap } from './search';
 
 export type SortKey =
   | 'name'
@@ -80,8 +81,9 @@ function copyPasses(o: OwnedCard, f: ActiveFilters): boolean {
   return true;
 }
 
-/** Card-level facets (color/rarity/set/type/cmc/search). */
-function cardPasses(o: OwnedCard, f: ActiveFilters, searchLower: string): boolean {
+/** Card-level GUI facets (color/rarity/set/type/cmc). Free-text search is
+ *  handled separately by the query language (see search.ts). */
+function cardPasses(o: OwnedCard, f: ActiveFilters): boolean {
   if (f.colors.length && !f.colors.every((c) => o.colorIdentity.includes(c))) return false;
   if (f.rarities.length && !f.rarities.includes(o.rarity)) return false;
   if (f.sets.length && !f.sets.includes(o.setCode)) return false;
@@ -91,15 +93,6 @@ function cardPasses(o: OwnedCard, f: ActiveFilters, searchLower: string): boolea
   }
   if (f.cmcMin != null && o.cmc < f.cmcMin) return false;
   if (f.cmcMax != null && o.cmc > f.cmcMax) return false;
-  if (searchLower) {
-    if (
-      !o.name.toLowerCase().includes(searchLower) &&
-      !o.typeLine.toLowerCase().includes(searchLower) &&
-      !(o.location ?? '').toLowerCase().includes(searchLower)
-    ) {
-      return false;
-    }
-  }
   return true;
 }
 
@@ -133,13 +126,19 @@ function compareGroups(a: GroupedCard, b: GroupedCard, sort: SortSpec): number {
  * thousand) filtered in JS is well under the 200ms budget and keeps multi-facet
  * AND/OR semantics simple and correct.
  */
-export function queryLibrary(all: OwnedCard[], filters: ActiveFilters, sort: SortSpec): GroupedCard[] {
-  const searchLower = filters.search.trim().toLowerCase();
+export function queryLibrary(
+  all: OwnedCard[],
+  filters: ActiveFilters,
+  sort: SortSpec,
+  enrich?: EnrichMap,
+): GroupedCard[] {
+  const query = parseQuery(filters.search);
   const groups = new Map<string, GroupedCard>();
 
   for (const o of all) {
-    if (!cardPasses(o, filters, searchLower)) continue;
+    if (!cardPasses(o, filters)) continue;
     if (!copyPasses(o, filters)) continue;
+    if (!matchesQuery(o, query, enrich)) continue;
 
     let g = groups.get(o.catalogueId);
     if (!g) {

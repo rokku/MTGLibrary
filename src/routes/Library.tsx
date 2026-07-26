@@ -8,6 +8,8 @@ import { FilterMenu } from '../components/FilterMenu';
 import { CardGrid } from '../components/CardGrid';
 import { CardList } from '../components/CardListRow';
 import { useSettings } from '../hooks/useSettings';
+import { db } from '../lib/db';
+import { parseQuery, queryNeedsEnrich, type EnrichMap } from '../lib/search';
 import {
   EMPTY_FILTERS,
   allOwned,
@@ -49,9 +51,23 @@ export function Library() {
   }, [searchInput]);
 
   const facets = useMemo(() => facetOptions(owned ?? []), [owned]);
+
+  // Oracle-text / keyword searches need catalogue fields not denormalised onto
+  // owned rows — join them in lazily, and only when the query actually uses them.
+  const enrich = useLiveQuery(async (): Promise<EnrichMap | null> => {
+    if (!queryNeedsEnrich(parseQuery(filters.search))) return null;
+    const ids = [...new Set((owned ?? []).map((o) => o.catalogueId))];
+    const cats = await db.catalogue.bulkGet(ids);
+    const m: EnrichMap = new Map();
+    for (const c of cats) {
+      if (c) m.set(c.id, { oracleText: c.oracleText ?? '', keywords: c.keywords ?? [] });
+    }
+    return m;
+  }, [filters.search, owned]);
+
   const results = useMemo(
-    () => queryLibrary(owned ?? [], filters, sort),
-    [owned, filters, sort],
+    () => queryLibrary(owned ?? [], filters, sort, enrich ?? undefined),
+    [owned, filters, sort, enrich],
   );
   const totalValue = useMemo(() => results.reduce((s, c) => s + c.valueEur, 0), [results]);
 

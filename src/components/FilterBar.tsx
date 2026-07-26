@@ -1,11 +1,14 @@
+import { useState } from 'react';
 import {
   AdjustmentsHorizontalIcon,
   ArrowsUpDownIcon,
   MagnifyingGlassIcon,
+  QuestionMarkCircleIcon,
   Squares2X2Icon,
   ListBulletIcon,
 } from '@heroicons/react/24/outline';
 import { SORT_OPTIONS, formatEur } from '../lib/constants';
+import { QUERY_HELP } from '../lib/search';
 import { hasActiveFilters, type ActiveFilters, type SortSpec } from '../lib/query';
 
 export type ViewMode = 'grid' | 'list';
@@ -40,6 +43,7 @@ function summarise(f: ActiveFilters): string[] {
 export function FilterBar(props: FilterBarProps) {
   const { search, onSearch, filters, activeCount, onOpenFilters, sort, onSort, view, onView } = props;
   const applied = summarise(filters);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   return (
     <div className="sticky top-0 z-30 border-b border-surface-2 bg-surface-0/95 backdrop-blur">
@@ -49,11 +53,21 @@ export function FilterBar(props: FilterBarProps) {
           <input
             value={search}
             onChange={(e) => onSearch(e.target.value)}
-            placeholder="Search name or type…"
-            className="w-full rounded-lg bg-surface-2 py-2.5 pl-10 pr-3 text-sm outline-none placeholder:text-neutral-500"
+            placeholder="Search — e.g. t:creature c:u cmc<=3"
+            className="w-full rounded-lg bg-surface-2 py-2.5 pl-10 pr-10 text-sm outline-none placeholder:text-neutral-500"
             type="search"
             enterKeyHint="search"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
           />
+          <button
+            onClick={() => setHelpOpen((v) => !v)}
+            className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-neutral-500 active:bg-surface-3"
+            aria-label="Search syntax help"
+          >
+            <QuestionMarkCircleIcon className="h-5 w-5" />
+          </button>
         </div>
         <button
           onClick={onOpenFilters}
@@ -67,6 +81,22 @@ export function FilterBar(props: FilterBarProps) {
           )}
         </button>
       </div>
+
+      {helpOpen && (
+        <div className="mx-3 mt-2 rounded-lg bg-surface-1 p-3">
+          <p className="mb-2 text-xs text-neutral-400">
+            Combine terms (all must match); prefix any with <code className="text-neutral-300">-</code> to exclude.
+          </p>
+          <dl className="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-2">
+            {QUERY_HELP.map((h) => (
+              <div key={h.syntax} className="flex items-baseline gap-2 text-xs">
+                <code className="whitespace-nowrap font-semibold text-neutral-200">{h.syntax}</code>
+                <span className="text-neutral-500">{h.desc}</span>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
 
       <div className="flex items-center gap-2 px-3 py-2">
         <label className="relative flex items-center gap-1 rounded-lg bg-surface-2 pl-2">
