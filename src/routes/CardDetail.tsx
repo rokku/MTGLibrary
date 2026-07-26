@@ -206,6 +206,9 @@ export function CardDetail() {
   }
 
   const totalQty = (copies ?? []).reduce((s, c) => s + c.quantity, 0);
+  const locations = [
+    ...new Set((copies ?? []).map((c) => c.location).filter((l): l is string => !!l)),
+  ];
 
   function openEdit(copy: OwnedCard) {
     setEditing({
@@ -293,6 +296,12 @@ export function CardDetail() {
             <p className="text-sm text-neutral-400">
               {card.manaCost ? `${card.manaCost} · ` : ''}Mana value {card.cmc}
             </p>
+            {locations.length > 0 && (
+              <p className="mt-1.5 flex items-center gap-1.5 text-sm font-medium text-neutral-200">
+                <MapPinIcon className="h-4 w-4 flex-shrink-0" style={{ color: settings.accent }} />
+                {locations.join(' · ')}
+              </p>
+            )}
           </div>
 
           {/* Owned copies */}
