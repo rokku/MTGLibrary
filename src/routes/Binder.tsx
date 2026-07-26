@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { ChevronRightIcon } from '@heroicons/react/24/outline';
 import { Header } from '../components/Header';
 import { useSettings } from '../hooks/useSettings';
-import { binderSets, type ShelfSort } from '../lib/binder';
+import { binderSets, getShelfSort, setShelfSort, type ShelfSort } from '../lib/binder';
 
 const SORTS: { key: ShelfSort; label: string }[] = [
   { key: 'recent', label: 'Recent' },
@@ -16,8 +16,13 @@ const SORTS: { key: ShelfSort; label: string }[] = [
 export function Binder() {
   const navigate = useNavigate();
   const settings = useSettings();
-  const [sort, setSort] = useState<ShelfSort>('recent');
+  const [sort, setSort] = useState<ShelfSort>(getShelfSort);
   const sets = useLiveQuery(() => binderSets(sort), [sort]);
+
+  function changeSort(s: ShelfSort) {
+    setShelfSort(s);
+    setSort(s);
+  }
 
   if (sets === undefined) {
     return (
@@ -44,7 +49,7 @@ export function Binder() {
             {SORTS.map((s) => (
               <button
                 key={s.key}
-                onClick={() => setSort(s.key)}
+                onClick={() => changeSort(s.key)}
                 className={`rounded-md px-2.5 py-1 text-xs ${
                   sort === s.key ? 'bg-white text-black' : 'bg-surface-1 text-neutral-300'
                 }`}

@@ -39,6 +39,14 @@ export interface BinderSetSummary {
 
 export type ShelfSort = 'recent' | 'completion' | 'name';
 
+// Remember the shelf sort across navigation (the shelf unmounts when you open a
+// set), resetting on a full app reload — mirrors the library's view state.
+let savedShelfSort: ShelfSort = 'recent';
+export const getShelfSort = (): ShelfSort => savedShelfSort;
+export const setShelfSort = (s: ShelfSort): void => {
+  savedShelfSort = s;
+};
+
 /**
  * The sets to show on the binder shelf: every set the collection has a card
  * from, with completion (distinct owned vs. printings in the catalogue). We
