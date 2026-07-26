@@ -10,7 +10,8 @@ export type NormalizedField =
   | 'expansion'
   | 'finish'
   | 'condition'
-  | 'language';
+  | 'language'
+  | 'location';
 
 export type ColumnMapping = Partial<Record<NormalizedField, string>>;
 
@@ -29,6 +30,7 @@ const HEADER_CANDIDATES: Record<NormalizedField, string[]> = {
   finish: ['foil', 'finish', 'isfoil', 'printing'],
   condition: ['condition', 'cond', 'grade'],
   language: ['language', 'lang'],
+  location: ['location', 'storage', 'position', 'box', 'binder', 'folder', 'slot', 'shelf'],
 };
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
@@ -137,6 +139,7 @@ export interface MatchResult {
   quantity: number;
   finish: Finish;
   condition: Condition;
+  location: string | null;
   status: MatchStatus;
   catalogueId?: string; // chosen match
   candidates: MatchCandidate[]; // for user pick when unmatched
@@ -220,6 +223,7 @@ export async function matchRows(
     const finish = parseFinish(col(row, 'finish'));
     const condition = parseCondition(col(row, 'condition'));
     const language = col(row, 'language');
+    const location = (col(row, 'location') ?? '').trim() || null;
 
     const base: MatchResult = {
       rowIndex: i,
@@ -227,6 +231,7 @@ export async function matchRows(
       quantity,
       finish,
       condition,
+      location,
       status: 'unmatched',
       candidates: [],
     };

@@ -92,7 +92,11 @@ function cardPasses(o: OwnedCard, f: ActiveFilters, searchLower: string): boolea
   if (f.cmcMin != null && o.cmc < f.cmcMin) return false;
   if (f.cmcMax != null && o.cmc > f.cmcMax) return false;
   if (searchLower) {
-    if (!o.name.toLowerCase().includes(searchLower) && !o.typeLine.toLowerCase().includes(searchLower)) {
+    if (
+      !o.name.toLowerCase().includes(searchLower) &&
+      !o.typeLine.toLowerCase().includes(searchLower) &&
+      !(o.location ?? '').toLowerCase().includes(searchLower)
+    ) {
       return false;
     }
   }

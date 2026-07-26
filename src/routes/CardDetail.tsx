@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Dialog } from '@headlessui/react';
-import { PencilSquareIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { MapPinIcon, PencilSquareIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { Header } from '../components/Header';
 import { ManaPips } from '../components/ManaPips';
 import { useSettings } from '../hooks/useSettings';
@@ -41,6 +41,7 @@ interface CopyDraft {
   condition: Condition;
   tags: string;
   notes: string;
+  location: string;
 }
 
 function EditCopyModal({
@@ -115,6 +116,16 @@ function EditCopyModal({
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs text-neutral-400">Location</label>
+              <input
+                value={local.location}
+                onChange={(e) => setLocal({ ...local, location: e.target.value })}
+                placeholder="Binder 2 · page 4"
+                className="w-full rounded-lg bg-surface-2 px-3 py-2 outline-none"
+              />
             </div>
 
             <div>
@@ -204,25 +215,27 @@ export function CardDetail() {
       condition: copy.condition,
       tags: copy.tags.join(', '),
       notes: copy.notes ?? '',
+      location: copy.location ?? '',
     });
     setModalOpen(true);
   }
 
   function openAdd() {
-    setEditing({ quantity: 1, finish: 'nonfoil', condition: 'NM', tags: '', notes: '' });
+    setEditing({ quantity: 1, finish: 'nonfoil', condition: 'NM', tags: '', notes: '', location: '' });
     setModalOpen(true);
   }
 
   async function saveDraft(d: CopyDraft) {
     const tags = d.tags.split(',').map((t) => t.trim()).filter(Boolean);
     const notes = d.notes.trim() || null;
+    const location = d.location.trim() || null;
     if (d.id) {
       const existing = (copies ?? []).find((c) => c.id === d.id);
       if (existing) {
-        await updateCopy({ ...existing, quantity: d.quantity, finish: d.finish, condition: d.condition, tags, notes });
+        await updateCopy({ ...existing, quantity: d.quantity, finish: d.finish, condition: d.condition, tags, notes, location });
       }
     } else {
-      await addCopy(card!, { quantity: d.quantity, finish: d.finish, condition: d.condition, tags, notes });
+      await addCopy(card!, { quantity: d.quantity, finish: d.finish, condition: d.condition, tags, notes, location });
     }
     setModalOpen(false);
     setEditing(null);
@@ -304,6 +317,11 @@ export function CardDetail() {
                         {c.quantity}× {c.finish}, {c.condition}
                         {c.tags.length > 0 && (
                           <span className="ml-2 text-xs text-neutral-400">{c.tags.join(', ')}</span>
+                        )}
+                        {c.location && (
+                          <span className="mt-0.5 flex items-center gap-1 text-xs text-neutral-400">
+                            <MapPinIcon className="h-3.5 w-3.5" /> {c.location}
+                          </span>
                         )}
                         {c.notes && <span className="block text-xs text-neutral-500">{c.notes}</span>}
                       </span>

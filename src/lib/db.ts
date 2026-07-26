@@ -54,6 +54,7 @@ export interface OwnedCard {
   // Metadata
   tags: string[]; // 'binder-1', 'trade', etc.
   notes: string | null;
+  location: string | null; // physical storage, e.g. from the CSV's Location column
 
   // Denormalised for faceting (sync with catalogue on import)
   name: string; // for name search + sort without a join

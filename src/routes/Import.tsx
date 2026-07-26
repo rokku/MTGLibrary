@@ -27,6 +27,7 @@ const FIELD_LABELS: Record<NormalizedField, string> = {
   finish: 'Foil / Finish',
   condition: 'Condition',
   language: 'Language',
+  location: 'Location / Storage',
 };
 
 function StepBadge({ n, label, active, done }: { n: number; label: string; active: boolean; done: boolean }) {

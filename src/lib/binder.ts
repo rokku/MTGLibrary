@@ -32,15 +32,20 @@ export interface BinderSetSummary {
   setName: string;
   ownedDistinct: number; // distinct printings owned
   ownedCopies: number; // total physical cards
+  total: number; // printings in the set (from the catalogue)
+  pct: number; // completion, 0–100
   releasedAt: string;
 }
 
+export type ShelfSort = 'recent' | 'completion' | 'name';
+
 /**
  * The sets to show on the binder shelf: every set the collection has a card
- * from, newest first. We browse sets you actually own into — not all ~800 sets
- * Scryfall knows about — so the shelf stays meaningful.
+ * from, with completion (distinct owned vs. printings in the catalogue). We
+ * browse sets you actually own into — not all ~800 sets Scryfall knows about —
+ * so the shelf stays meaningful.
  */
-export async function binderSets(): Promise<BinderSetSummary[]> {
+export async function binderSets(sort: ShelfSort = 'recent'): Promise<BinderSetSummary[]> {
   const owned = await db.owned.toArray();
   const map = new Map<string, BinderSetSummary>();
   const distinct = new Map<string, Set<string>>();
@@ -53,6 +58,8 @@ export async function binderSets(): Promise<BinderSetSummary[]> {
         setName: o.setName,
         ownedDistinct: 0,
         ownedCopies: 0,
+        total: 0,
+        pct: 0,
         releasedAt: o.releasedAt,
       };
       map.set(o.setCode, s);
@@ -64,9 +71,21 @@ export async function binderSets(): Promise<BinderSetSummary[]> {
 
   for (const [code, ids] of distinct) map.get(code)!.ownedDistinct = ids.size;
 
-  return [...map.values()].sort(
-    (a, b) => b.releasedAt.localeCompare(a.releasedAt) || a.setName.localeCompare(b.setName),
+  // Total printings per set from the catalogue (indexed lookup, one per set).
+  await Promise.all(
+    [...map.values()].map(async (s) => {
+      s.total = await db.catalogue.where('setCode').equals(s.setCode).count();
+      s.pct = s.total > 0 ? Math.round((s.ownedDistinct / s.total) * 100) : 0;
+    }),
   );
+
+  const list = [...map.values()];
+  list.sort((a, b) => {
+    if (sort === 'completion') return b.pct - a.pct || a.setName.localeCompare(b.setName);
+    if (sort === 'name') return a.setName.localeCompare(b.setName);
+    return b.releasedAt.localeCompare(a.releasedAt) || a.setName.localeCompare(b.setName);
+  });
+  return list;
 }
 
 /** A single binder pocket: a printing in the set, and how many the user owns. */

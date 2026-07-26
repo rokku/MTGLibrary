@@ -21,6 +21,7 @@ export function ownedFromCatalogue(
     condition: Condition;
     tags?: string[];
     notes?: string | null;
+    location?: string | null;
     importId: string;
     importedAt: number;
   },
@@ -33,6 +34,7 @@ export function ownedFromCatalogue(
     condition: fields.condition,
     tags: fields.tags ?? [],
     notes: fields.notes ?? null,
+    location: fields.location ?? null,
     // Denormalised facets
     name: cat.name,
     typeLine: cat.typeLine,
@@ -83,6 +85,7 @@ export async function commitImport(
         quantity: m.quantity,
         finish: m.finish,
         condition: m.condition,
+        location: m.location,
         importId,
         importedAt,
       }),
@@ -148,19 +151,23 @@ export async function syncImport(
     finish: Finish;
     condition: Condition;
     quantity: number;
+    location: string | null;
   }
   const desired = new Map<string, Desired>();
   for (const m of matched) {
     if (m.status !== 'matched' || !m.catalogueId) continue;
     const key = stackKey(m.catalogueId, m.finish, m.condition);
     const cur = desired.get(key);
-    if (cur) cur.quantity += m.quantity;
-    else
+    if (cur) {
+      cur.quantity += m.quantity;
+      cur.location = cur.location ?? m.location;
+    } else
       desired.set(key, {
         catalogueId: m.catalogueId,
         finish: m.finish,
         condition: m.condition,
         quantity: m.quantity,
+        location: m.location,
       });
   }
 
@@ -194,8 +201,11 @@ export async function syncImport(
       // Carry the CSV quantity on an existing row (prefer a CSV-managed one so
       // manual copies are left alone), preserving its id/tags/notes.
       const primary = rows.find((r) => r.importId !== 'manual') ?? rows[0]!;
-      if (primary.quantity !== d.quantity) {
-        toPut.push({ ...primary, quantity: d.quantity });
+      // The CSV is the source of truth for location too, but don't clobber an
+      // existing one when this row carried none.
+      const nextLocation = d.location ?? primary.location ?? null;
+      if (primary.quantity !== d.quantity || primary.location !== nextLocation) {
+        toPut.push({ ...primary, quantity: d.quantity, location: nextLocation });
         summary.updated++;
       } else {
         summary.unchanged++;
@@ -213,6 +223,7 @@ export async function syncImport(
           quantity: d.quantity,
           finish: d.finish,
           condition: d.condition,
+          location: d.location,
           importId,
           importedAt,
         }),
@@ -274,6 +285,7 @@ export async function addCopy(cat: CatalogueCard, fields: {
   condition: Condition;
   tags?: string[];
   notes?: string | null;
+  location?: string | null;
 }): Promise<void> {
   const copy = ownedFromCatalogue(cat, {
     ...fields,
