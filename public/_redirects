@@ -1,0 +1,3 @@
+# SPA fallback: serve index.html for client-side routes (Netlify / Cloudflare Pages).
+# Data chunks and assets are real files and are matched before this catch-all.
+/*    /index.html    200

@@ -1,0 +1,15 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Generated catalogue data (rebuild with `npm run build:catalogue`)
+public/data/catalogue-*/
+public/data/manifest.json
+
+# Editor / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.log
