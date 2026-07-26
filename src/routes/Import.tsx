@@ -154,6 +154,7 @@ export function Import() {
   const matchedCount = results.filter((r) => r.status === 'matched').length;
   const unmatchedCount = results.filter((r) => r.status === 'unmatched').length;
   const skippedCount = results.filter((r) => r.status === 'skipped').length;
+  const locatedCount = results.filter((r) => r.status === 'matched' && r.location).length;
 
   function resolveRow(rowIndex: number, catalogueId: string | null) {
     setResults((prev) =>
@@ -410,6 +411,13 @@ export function Import() {
                   {imgStats.fetched} images cached{imgStats.failed > 0 && `, ${imgStats.failed} failed`}.
                 </p>
               )}
+              <p className="text-neutral-400">
+                {locatedCount > 0
+                  ? `${locatedCount} have a location.`
+                  : mapping.location
+                    ? 'No locations found — the mapped Location column is empty.'
+                    : 'No location column mapped — go back to Map to set one.'}
+              </p>
             </div>
 
             {existingCount > 0 && (
