@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Cog6ToothIcon, ArrowUpTrayIcon, RectangleStackIcon } from '@heroicons/react/24/outline';
@@ -10,6 +10,7 @@ import { CardList } from '../components/CardListRow';
 import { useSettings } from '../hooks/useSettings';
 import { db } from '../lib/db';
 import { parseQuery, queryNeedsEnrich, type EnrichMap } from '../lib/search';
+import { getLibraryView, setLibraryView } from '../lib/libraryView';
 import {
   EMPTY_FILTERS,
   allOwned,
@@ -38,10 +39,13 @@ export function Library() {
   const settings = useSettings();
   const owned = useLiveQuery(() => allOwned(), []);
 
-  const [filters, setFilters] = useState<ActiveFilters>(EMPTY_FILTERS);
-  const [searchInput, setSearchInput] = useState('');
-  const [sort, setSort] = useState<SortSpec>({ key: 'name', dir: 'asc' });
-  const [view, setView] = useState<ViewMode>('grid');
+  // Seed from the persisted view so filters/sort/search/layout survive a trip
+  // to a card detail and back (Library unmounts on navigation).
+  const initial = useRef(getLibraryView()).current;
+  const [filters, setFilters] = useState<ActiveFilters>(initial.filters);
+  const [searchInput, setSearchInput] = useState(initial.searchInput);
+  const [sort, setSort] = useState<SortSpec>(initial.sort);
+  const [view, setView] = useState<ViewMode>(initial.view);
   const [menuOpen, setMenuOpen] = useState(false);
 
   // Debounce the search box into the active filter set (200ms per spec).
@@ -49,6 +53,11 @@ export function Library() {
     const t = setTimeout(() => setFilters((f) => ({ ...f, search: searchInput })), 200);
     return () => clearTimeout(t);
   }, [searchInput]);
+
+  // Persist the view state so it's restored on the next mount.
+  useEffect(() => {
+    setLibraryView({ filters, searchInput, sort, view });
+  }, [filters, searchInput, sort, view]);
 
   const facets = useMemo(() => facetOptions(owned ?? []), [owned]);
 
