@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   BoltIcon,
@@ -9,6 +9,7 @@ import {
   ExclamationTriangleIcon,
   MinusIcon,
   PlusIcon,
+  QueueListIcon,
   SparklesIcon,
   XCircleIcon,
 } from '@heroicons/react/24/outline';
@@ -476,7 +477,20 @@ export function DeckBuilder() {
 
   return (
     <div className="flex h-full flex-col">
-      <Header title={deck.name} back="/decks" accent={settings.accent} />
+      <Header
+        title={deck.name}
+        back="/decks"
+        accent={settings.accent}
+        right={
+          <Link
+            to={`/decks/${deck.id}/list`}
+            className="tap-target flex items-center justify-center rounded-lg active:bg-surface-2"
+            aria-label="View decklist"
+          >
+            <QueueListIcon className="h-6 w-6" />
+          </Link>
+        }
+      />
 
       <main className="flex-1 overflow-y-auto">
         {/* Commander banner */}
@@ -532,6 +546,13 @@ export function DeckBuilder() {
               ) : (
                 <span className="mt-1 block text-emerald-300">Every role hit its target.</span>
               )}
+              <Link
+                to={`/decks/${deck.id}/list`}
+                className="mt-2 flex items-center justify-center gap-2 rounded-lg bg-surface-2 py-2 text-xs font-semibold active:bg-surface-3"
+              >
+                <QueueListIcon className="h-4 w-4" />
+                View deck
+              </Link>
             </div>
           )}
         </section>

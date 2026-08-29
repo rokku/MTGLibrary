@@ -13,6 +13,7 @@ import { BinderSet } from './routes/BinderSet';
 import { Decks } from './routes/Decks';
 import { CommanderPicker } from './routes/CommanderPicker';
 import { DeckBuilder } from './routes/DeckBuilder';
+import { DeckList } from './routes/DeckList';
 
 /** Slim banner shown while the Scryfall catalogue loads into IndexedDB. */
 function CatalogueBanner() {
@@ -93,6 +94,7 @@ export default function App() {
             <Route path="/decks" element={<Decks />} />
             <Route path="/decks/new" element={<CommanderPicker />} />
             <Route path="/decks/:deckId" element={<DeckBuilder />} />
+            <Route path="/decks/:deckId/list" element={<DeckList />} />
             <Route path="/card/:catalogueId" element={<CardDetail />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />

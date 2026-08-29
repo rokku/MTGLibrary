@@ -677,3 +677,68 @@ export function autoBuild(
 
   return { deck: { ...deck, entries }, nonBasicAdded, basicsAdded, shortfalls };
 }
+
+// ── Decklist view + export ───────────────────────────────────────────
+
+export interface DeckRow {
+  card: CatalogueCard;
+  role: RoleId;
+  quantity: number;
+}
+
+/** Deck entries resolved to cards and grouped by role, each sorted by curve. */
+export function deckRowsByRole(deck: Deck, byId: Map<string, CatalogueCard>): Record<RoleId, DeckRow[]> {
+  const out: Record<RoleId, DeckRow[]> = { land: [], ramp: [], draw: [], removal: [], wipe: [], synergy: [] };
+  for (const e of deck.entries) {
+    const card = byId.get(e.catalogueId);
+    if (card) out[e.role].push({ card, role: e.role, quantity: e.quantity });
+  }
+  for (const role of Object.keys(out) as RoleId[]) {
+    out[role].sort((a, b) => a.card.cmc - b.card.cmc || a.card.name.localeCompare(b.card.name));
+  }
+  return out;
+}
+
+/**
+ * Nonland mana curve: card counts bucketed by mana value 0–6 and 7+. The
+ * commander is included; lands are excluded (they have no meaningful curve).
+ */
+export function manaCurve(deck: Deck, commander: CatalogueCard | undefined, byId: Map<string, CatalogueCard>): number[] {
+  const buckets = new Array(8).fill(0) as number[];
+  const add = (card: CatalogueCard, qty: number) => {
+    if (card.typeLine.toLowerCase().includes('land')) return;
+    const i = Math.min(7, Math.max(0, Math.floor(card.cmc)));
+    buckets[i] = (buckets[i] ?? 0) + qty;
+  };
+  if (commander) add(commander, 1);
+  for (const e of deck.entries) {
+    const c = byId.get(e.catalogueId);
+    if (c) add(c, e.quantity);
+  }
+  return buckets;
+}
+
+/**
+ * A plain-text decklist for Moxfield's paste import: `N Card Name` per line, the
+ * commander tagged `*CMDR*`, cards ordered by role then curve. No category
+ * headers — Moxfield reads bare quantity/name lines.
+ */
+export function moxfieldExport(deck: Deck, commander: CatalogueCard | undefined, byId: Map<string, CatalogueCard>): string {
+  const lines: string[] = [];
+  if (commander) lines.push(`1 ${commander.name} *CMDR*`);
+
+  const roleOrder = new Map(ROLES.map((r, i) => [r.id, i]));
+  const rows = deck.entries
+    .map((e) => ({ e, card: byId.get(e.catalogueId) }))
+    .filter((x): x is { e: DeckEntry; card: CatalogueCard } => !!x.card)
+    .sort(
+      (a, b) =>
+        (roleOrder.get(a.e.role) ?? 0) - (roleOrder.get(b.e.role) ?? 0) ||
+        a.card.cmc - b.card.cmc ||
+        a.card.name.localeCompare(b.card.name),
+    );
+
+  if (rows.length && commander) lines.push('');
+  for (const { e, card } of rows) lines.push(`${e.quantity} ${card.name}`);
+  return lines.join('\n');
+}
