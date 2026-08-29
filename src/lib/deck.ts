@@ -646,6 +646,16 @@ const CURVE_WEIGHTS = [1, 6, 14, 16, 13, 9, 5, 3];
 
 const cmcBucket = (cmc: number): number => Math.min(7, Math.max(0, Math.floor(cmc)));
 
+/** Fisher–Yates shuffle (copy). Keeps auto-build from picking alphabetically. */
+function shuffle<T>(arr: T[]): T[] {
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+}
+
 /** Fractional target count per mana-value bucket for a nonland total. */
 function curveQuota(nonlandTotal: number): number[] {
   const sum = CURVE_WEIGHTS.reduce((a, b) => a + b, 0);
@@ -705,8 +715,9 @@ export function autoBuild(
   // Track picks by oracle id so alternate printings of a card we've already
   // taken (or of the commander) are treated as the same singleton card.
   const used = new Set<string>([commander.oracleId]);
-  // Collapse the collection to one printing per card before selecting.
-  const owned = dedupeByOracle([...byId.values()].filter((c) => ownedQty.has(c.id)));
+  // Collapse the collection to one printing per card, then shuffle so picks
+  // within a mana-value bucket aren't biased toward the start of the alphabet.
+  const owned = shuffle(dedupeByOracle([...byId.values()].filter((c) => ownedQty.has(c.id))));
   let nonBasicAdded = 0;
 
   // Non-land roles: fill each toward the shared curve quota rather than by
@@ -725,8 +736,7 @@ export function autoBuild(
           !isBasicLand(c) &&
           withinIdentity(c.colorIdentity, deck.colorIdentity) &&
           eligibleRoles(cardFacts(c), deck.themes).has(role),
-      )
-      .sort((a, b) => a.name.localeCompare(b.name));
+      );
     for (const c of pickForCurve(cands, target, quota, bucketUsed)) {
       entries.push({ catalogueId: c.id, role, quantity: 1 });
       used.add(c.oracleId);
@@ -744,8 +754,7 @@ export function autoBuild(
         !isBasicLand(c) &&
         cardFacts(c).typeLine.includes('land') &&
         withinIdentity(c.colorIdentity, deck.colorIdentity),
-    )
-    .sort((a, b) => a.name.localeCompare(b.name));
+    );
   for (const c of nonBasicLands.slice(0, landTarget)) {
     entries.push({ catalogueId: c.id, role: 'land', quantity: 1 });
     used.add(c.oracleId);
