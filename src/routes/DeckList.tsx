@@ -2,7 +2,14 @@ import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Dialog } from '@headlessui/react';
-import { ClipboardDocumentIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, CheckIcon } from '@heroicons/react/24/outline';
+import {
+  ClipboardDocumentIcon,
+  ArrowDownTrayIcon,
+  ArrowUpTrayIcon,
+  CheckIcon,
+  Squares2X2Icon,
+  ListBulletIcon,
+} from '@heroicons/react/24/outline';
 import { Header } from '../components/Header';
 import { ManaPips } from '../components/ManaPips';
 import { CatalogueThumb } from '../components/CatalogueThumb';
@@ -20,6 +27,11 @@ import {
 } from '../lib/deck';
 
 const CURVE_LABELS = ['0', '1', '2', '3', '4', '5', '6', '7+'];
+
+// Remember the grid/list choice across navigation (opening a card unmounts this
+// route), resetting on a full reload — mirrors the library's view state.
+type DeckView = 'grid' | 'list';
+let savedDeckView: DeckView = 'grid';
 
 /** Single-series magnitude chart: nonland card counts by mana value. */
 function ManaCurve({ buckets, accent }: { buckets: number[]; accent: string }) {
@@ -75,6 +87,28 @@ function CardRow({ row, onOpen }: { row: DeckRow; onOpen: () => void }) {
         </span>
       </button>
     </li>
+  );
+}
+
+function CardCell({ row, accent, onOpen }: { row: DeckRow; accent: string; onOpen: () => void }) {
+  const { card, quantity } = row;
+  return (
+    <CardHoverCard catalogueId={card.id} className="block">
+      <CatalogueThumb
+        card={card}
+        onClick={onOpen}
+        badge={
+          quantity > 1 ? (
+            <span
+              className="absolute right-1 top-1 min-w-[22px] rounded-full px-1.5 py-0.5 text-center text-xs font-bold text-black shadow"
+              style={{ backgroundColor: accent }}
+            >
+              {quantity}
+            </span>
+          ) : undefined
+        }
+      />
+    </CardHoverCard>
   );
 }
 
@@ -164,6 +198,11 @@ export function DeckList() {
   const navigate = useNavigate();
   const settings = useSettings();
   const [exportOpen, setExportOpen] = useState(false);
+  const [view, setView] = useState<DeckView>(savedDeckView);
+  function changeView(v: DeckView) {
+    savedDeckView = v;
+    setView(v);
+  }
 
   const deck = useLiveQuery(async () => (await getDeck(deckId!)) ?? null, [deckId]);
 
@@ -216,11 +255,33 @@ export function DeckList() {
       <Header title={deck.name} back={`/decks/${deck.id}`} accent={settings.accent} right={exportButton} />
 
       <main className="flex-1 overflow-y-auto p-3">
-        <div className="mb-3 flex items-baseline justify-between">
+        <div className="mb-3 flex items-center justify-between">
           <span className="text-sm text-neutral-400">
             <span className="font-semibold tabular-nums text-neutral-200">{total}</span> / 100 cards
           </span>
-          <ManaPips identity={deck.colorIdentity} size={14} />
+          <div className="flex items-center gap-2">
+            <ManaPips identity={deck.colorIdentity} size={14} />
+            <div className="flex overflow-hidden rounded-lg bg-surface-1">
+              <button
+                onClick={() => changeView('grid')}
+                className={`tap-target grid place-items-center px-2.5 ${view === 'grid' ? 'text-black' : 'text-neutral-400'}`}
+                style={view === 'grid' ? { backgroundColor: settings.accent } : undefined}
+                aria-label="Grid view"
+                aria-pressed={view === 'grid'}
+              >
+                <Squares2X2Icon className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => changeView('list')}
+                className={`tap-target grid place-items-center px-2.5 ${view === 'list' ? 'text-black' : 'text-neutral-400'}`}
+                style={view === 'list' ? { backgroundColor: settings.accent } : undefined}
+                aria-label="List view"
+                aria-pressed={view === 'list'}
+              >
+                <ListBulletIcon className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Commander */}
@@ -257,11 +318,24 @@ export function DeckList() {
                   <span className="text-xs font-semibold uppercase tracking-wide text-neutral-400">{role.label}</span>
                   <span className="text-xs tabular-nums text-neutral-500">{count}</span>
                 </h2>
-                <ul className="space-y-1.5">
-                  {rows.map((r) => (
-                    <CardRow key={`${r.card.id}-${r.role as RoleId}`} row={r} onOpen={() => navigate(`/card/${r.card.id}`)} />
-                  ))}
-                </ul>
+                {view === 'grid' ? (
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+                    {rows.map((r) => (
+                      <CardCell
+                        key={`${r.card.id}-${r.role as RoleId}`}
+                        row={r}
+                        accent={settings.accent}
+                        onOpen={() => navigate(`/card/${r.card.id}`)}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {rows.map((r) => (
+                      <CardRow key={`${r.card.id}-${r.role as RoleId}`} row={r} onOpen={() => navigate(`/card/${r.card.id}`)} />
+                    ))}
+                  </ul>
+                )}
               </section>
             );
           })}
