@@ -30,10 +30,13 @@ import {
   type Legality,
   autoBuild,
   basicLandPrintings,
+  allowsAnyNumber,
   cardFacts,
   changeEntryQuantity,
+  dedupeByOracle,
   deckSize,
   eligibleRoles,
+  isBasicLand,
   getDeck,
   roleCounts,
   saveDeck,
@@ -169,6 +172,8 @@ function CandidateRow({
 }) {
   const entry = deck.entries.find((e) => e.catalogueId === card.id && e.role === role);
   const added = !!entry;
+  // Singleton: only basics / "any number" cards may stack beyond one.
+  const maxCopies = isBasicLand(card) || allowsAnyNumber(card) ? ownedQty : 1;
 
   return (
     <li className="flex items-center gap-2.5 rounded-lg bg-surface-1 p-1.5">
@@ -197,7 +202,7 @@ function CandidateRow({
           <span className="w-5 text-center text-sm font-semibold tabular-nums">{entry!.quantity}</span>
           <button
             onClick={() => saveDeck(changeEntryQuantity(deck, card.id, role, +1))}
-            disabled={entry!.quantity >= ownedQty}
+            disabled={entry!.quantity >= maxCopies}
             className="tap-target grid h-8 w-8 place-items-center rounded-md text-black disabled:opacity-40"
             style={{ backgroundColor: accent }}
             aria-label="Add one"
@@ -404,6 +409,9 @@ export function DeckBuilder() {
         const ya = assigned.get(y.id) === role ? 0 : 1;
         return xa - ya || x.cmc - y.cmc || x.name.localeCompare(y.name);
       });
+      // Collapse alternate printings — one row per card (keeps the added one,
+      // since added cards sort first).
+      result[role] = dedupeByOracle(result[role]);
     }
     return result;
   }, [deck, catMap, ownedQty]);
@@ -447,7 +455,7 @@ export function DeckBuilder() {
       for (const o of ownedRows) qty.set(o.catalogueId, (qty.get(o.catalogueId) ?? 0) + o.quantity);
 
       const basics = await basicLandPrintings();
-      const res = autoBuild(deck, commander.id, byId, qty, basics, 'free');
+      const res = autoBuild(deck, commander, byId, qty, basics, 'free');
       await saveDeck(res.deck);
       setBuildResult(res);
     } finally {

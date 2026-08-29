@@ -449,6 +449,18 @@ export function deckSize(entries: DeckEntry[]): number {
 
 // ── Legality ─────────────────────────────────────────────────────────
 
+/** Keep one printing per card (by oracle id), preserving order. */
+export function dedupeByOracle(cards: CatalogueCard[]): CatalogueCard[] {
+  const seen = new Set<string>();
+  const out: CatalogueCard[] = [];
+  for (const c of cards) {
+    if (seen.has(c.oracleId)) continue;
+    seen.add(c.oracleId);
+    out.push(c);
+  }
+  return out;
+}
+
 /** A card is a basic land — unlimited copies, and free to add to any deck. */
 export function isBasicLand(cat: { typeLine: string }): boolean {
   const t = cat.typeLine.toLowerCase();
@@ -526,24 +538,30 @@ export function validateDeck(
     });
   }
 
-  // Aggregate copies across every role so a card slotted twice is caught.
-  const qtyById = new Map<string, number>();
-  for (const e of deck.entries) qtyById.set(e.catalogueId, (qtyById.get(e.catalogueId) ?? 0) + e.quantity);
-
-  for (const [id, qty] of qtyById) {
-    const cat = byId.get(id);
+  // Aggregate copies by oracle id — singleton is per card, so two printings of
+  // the same card (e.g. Terramorphic Expanse from different sets) still count as
+  // duplicates.
+  const byOracle = new Map<string, { qty: number; card: CatalogueCard }>();
+  for (const e of deck.entries) {
+    const cat = byId.get(e.catalogueId);
     if (!cat) continue;
-    if (commander && id === commander.id) {
-      issues.push({ level: 'error', message: `${cat.name} is your commander and can’t also be in the 99.` });
+    const cur = byOracle.get(cat.oracleId);
+    if (cur) cur.qty += e.quantity;
+    else byOracle.set(cat.oracleId, { qty: e.quantity, card: cat });
+  }
+
+  for (const { qty, card } of byOracle.values()) {
+    if (commander && card.oracleId === commander.oracleId) {
+      issues.push({ level: 'error', message: `${card.name} is your commander and can’t also be in the 99.` });
     }
-    if (qty > 1 && !allowsAnyNumber(cat)) {
-      issues.push({ level: 'error', message: `${qty}× ${cat.name} — only one copy allowed (singleton).` });
+    if (qty > 1 && !allowsAnyNumber(card)) {
+      issues.push({ level: 'error', message: `${qty}× ${card.name} — only one copy allowed (singleton).` });
     }
-    if (!withinIdentity(cat.colorIdentity, deck.colorIdentity)) {
-      issues.push({ level: 'error', message: `${cat.name} is outside your commander’s colour identity.` });
+    if (!withinIdentity(card.colorIdentity, deck.colorIdentity)) {
+      issues.push({ level: 'error', message: `${card.name} is outside your commander’s colour identity.` });
     }
-    if (BANNED_COMMANDER.has(cat.name.toLowerCase())) {
-      issues.push({ level: 'error', message: `${cat.name} is banned in Commander.` });
+    if (BANNED_COMMANDER.has(card.name.toLowerCase())) {
+      issues.push({ level: 'error', message: `${card.name} is banned in Commander.` });
     }
   }
 
@@ -583,15 +601,18 @@ export interface AutoBuildResult {
  */
 export function autoBuild(
   deck: Deck,
-  commanderId: string,
+  commander: CatalogueCard,
   byId: Map<string, CatalogueCard>,
   ownedQty: Map<string, number>,
   basics: Record<string, CatalogueCard>,
   basicsMode: 'free' | 'owned' = 'free',
 ): AutoBuildResult {
   const entries: DeckEntry[] = [];
-  const used = new Set<string>([commanderId]);
-  const owned = [...byId.values()].filter((c) => ownedQty.has(c.id));
+  // Track picks by oracle id so alternate printings of a card we've already
+  // taken (or of the commander) are treated as the same singleton card.
+  const used = new Set<string>([commander.oracleId]);
+  // Collapse the collection to one printing per card before selecting.
+  const owned = dedupeByOracle([...byId.values()].filter((c) => ownedQty.has(c.id)));
   let nonBasicAdded = 0;
 
   // Non-land roles: greedily take the cheapest eligible owned cards.
@@ -602,7 +623,7 @@ export function autoBuild(
     const cands = owned
       .filter(
         (c) =>
-          !used.has(c.id) &&
+          !used.has(c.oracleId) &&
           !isBasicLand(c) &&
           withinIdentity(c.colorIdentity, deck.colorIdentity) &&
           eligibleRoles(cardFacts(c), deck.themes).has(role),
@@ -610,7 +631,7 @@ export function autoBuild(
       .sort((a, b) => a.cmc - b.cmc || a.name.localeCompare(b.name));
     for (const c of cands.slice(0, target)) {
       entries.push({ catalogueId: c.id, role, quantity: 1 });
-      used.add(c.id);
+      used.add(c.oracleId);
       nonBasicAdded++;
     }
   }
@@ -621,7 +642,7 @@ export function autoBuild(
   const nonBasicLands = owned
     .filter(
       (c) =>
-        !used.has(c.id) &&
+        !used.has(c.oracleId) &&
         !isBasicLand(c) &&
         cardFacts(c).typeLine.includes('land') &&
         withinIdentity(c.colorIdentity, deck.colorIdentity),
@@ -629,7 +650,7 @@ export function autoBuild(
     .sort((a, b) => a.name.localeCompare(b.name));
   for (const c of nonBasicLands.slice(0, landTarget)) {
     entries.push({ catalogueId: c.id, role: 'land', quantity: 1 });
-    used.add(c.id);
+    used.add(c.oracleId);
     landCount++;
     nonBasicAdded++;
   }
