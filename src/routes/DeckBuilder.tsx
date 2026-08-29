@@ -427,15 +427,26 @@ export function DeckBuilder() {
   const [buildResult, setBuildResult] = useState<AutoBuildResult | null>(null);
 
   async function handleBuild() {
-    if (!deck || !commander || !catMap || building) return;
+    if (!deck || !commander || building) return;
     const yes = window.confirm(
       'Build for me replaces the current deck contents with picks from your collection (basics added to fill the mana base). Continue?',
     );
     if (!yes) return;
     setBuilding(true);
     try {
+      // Read the collection fresh here rather than leaning on the live `catMap`,
+      // which is briefly an empty map while a large collection loads — building
+      // against that half-loaded state is what produced empty results.
+      const ownedRows = await allOwned();
+      const ids = [...new Set(ownedRows.map((o) => o.catalogueId))];
+      const cats = await db.catalogue.bulkGet(ids);
+      const byId = new Map<string, CatalogueCard>();
+      for (const c of cats) if (c) byId.set(c.id, c);
+      const qty = new Map<string, number>();
+      for (const o of ownedRows) qty.set(o.catalogueId, (qty.get(o.catalogueId) ?? 0) + o.quantity);
+
       const basics = await basicLandPrintings();
-      const res = autoBuild(deck, commander.id, catMap, ownedQty, basics, 'free');
+      const res = autoBuild(deck, commander.id, byId, qty, basics, 'free');
       await saveDeck(res.deck);
       setBuildResult(res);
     } finally {
