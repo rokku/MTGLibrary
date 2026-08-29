@@ -639,6 +639,47 @@ export async function basicLandPrintings(): Promise<Record<string, CatalogueCard
   return out;
 }
 
+// A common EDH nonland curve shape (weights by mana value 0,1,2,3,4,5,6,7+):
+// low on 0–1, a hump at 2–4, tapering after. Used to spread auto-build picks
+// across the curve instead of grabbing the cheapest cards first.
+const CURVE_WEIGHTS = [1, 6, 14, 16, 13, 9, 5, 3];
+
+const cmcBucket = (cmc: number): number => Math.min(7, Math.max(0, Math.floor(cmc)));
+
+/** Fractional target count per mana-value bucket for a nonland total. */
+function curveQuota(nonlandTotal: number): number[] {
+  const sum = CURVE_WEIGHTS.reduce((a, b) => a + b, 0);
+  return CURVE_WEIGHTS.map((w) => (w / sum) * nonlandTotal);
+}
+
+/**
+ * Pick `count` cards from `cands`, each time taking the one whose mana-value
+ * bucket is furthest below its curve quota (ties broken toward the cheaper card).
+ * Mutates `bucketUsed` so quotas are shared across roles.
+ */
+function pickForCurve(cands: CatalogueCard[], count: number, quota: number[], bucketUsed: number[]): CatalogueCard[] {
+  const remaining = [...cands];
+  const chosen: CatalogueCard[] = [];
+  for (let k = 0; k < count && remaining.length; k++) {
+    let bestIdx = -1;
+    let bestScore = -Infinity;
+    for (let i = 0; i < remaining.length; i++) {
+      const c = remaining[i]!;
+      const b = cmcBucket(c.cmc);
+      const deficit = (quota[b] ?? 0) - (bucketUsed[b] ?? 0);
+      if (deficit > bestScore || (deficit === bestScore && (bestIdx < 0 || c.cmc < remaining[bestIdx]!.cmc))) {
+        bestScore = deficit;
+        bestIdx = i;
+      }
+    }
+    if (bestIdx < 0) break;
+    const [pick] = remaining.splice(bestIdx, 1);
+    chosen.push(pick!);
+    bucketUsed[cmcBucket(pick!.cmc)] = (bucketUsed[cmcBucket(pick!.cmc)] ?? 0) + 1;
+  }
+  return chosen;
+}
+
 export interface AutoBuildResult {
   deck: Deck;
   nonBasicAdded: number;
@@ -668,8 +709,12 @@ export function autoBuild(
   const owned = dedupeByOracle([...byId.values()].filter((c) => ownedQty.has(c.id)));
   let nonBasicAdded = 0;
 
-  // Non-land roles: greedily take the cheapest eligible owned cards.
+  // Non-land roles: fill each toward the shared curve quota rather than by
+  // cheapest-first, so the deck gets a proper spread of mana values.
   const SPELL_ROLES: RoleId[] = ['ramp', 'draw', 'removal', 'wipe', 'synergy'];
+  const spellTotal = SPELL_ROLES.reduce((n, r) => n + (deck.targets[r] ?? 0), 0);
+  const quota = curveQuota(spellTotal);
+  const bucketUsed = new Array(8).fill(0) as number[];
   for (const role of SPELL_ROLES) {
     const target = deck.targets[role] ?? 0;
     if (target <= 0) continue;
@@ -681,8 +726,8 @@ export function autoBuild(
           withinIdentity(c.colorIdentity, deck.colorIdentity) &&
           eligibleRoles(cardFacts(c), deck.themes).has(role),
       )
-      .sort((a, b) => a.cmc - b.cmc || a.name.localeCompare(b.name));
-    for (const c of cands.slice(0, target)) {
+      .sort((a, b) => a.name.localeCompare(b.name));
+    for (const c of pickForCurve(cands, target, quota, bucketUsed)) {
       entries.push({ catalogueId: c.id, role, quantity: 1 });
       used.add(c.oracleId);
       nonBasicAdded++;

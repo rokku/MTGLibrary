@@ -44,15 +44,14 @@ function ManaCurve({ buckets, accent }: { buckets: number[]; accent: string }) {
         <span className="text-sm font-medium">Mana curve</span>
         <span className="text-xs text-neutral-500">{total} nonland cards</span>
       </figcaption>
-      <div className="flex h-28 items-end gap-1.5">
+      <div className="flex items-end gap-1.5" style={{ height: 118 }}>
         {buckets.map((count, i) => (
           <div key={i} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1" title={`Mana value ${CURVE_LABELS[i]}: ${count} card${count === 1 ? '' : 's'}`}>
             <span className="text-[10px] tabular-nums text-neutral-400">{count || ''}</span>
             <div
               className="w-full rounded-t"
               style={{
-                height: `${(count / max) * 100}%`,
-                minHeight: count > 0 ? 3 : 0,
+                height: count > 0 ? Math.max(4, (count / max) * 96) : 0,
                 backgroundColor: count > 0 ? accent : 'transparent',
               }}
             />
