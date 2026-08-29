@@ -41,6 +41,9 @@ interface ScryfallFace {
   image_uris?: ScryfallImageUris;
   colors?: string[];
   artist?: string;
+  power?: string;
+  toughness?: string;
+  loyalty?: string;
 }
 interface ScryfallCard {
   id: string;
@@ -63,6 +66,9 @@ interface ScryfallCard {
   released_at: string;
   keywords?: string[];
   oracle_text?: string;
+  power?: string;
+  toughness?: string;
+  loyalty?: string;
   games?: string[];
   digital?: boolean;
 }
@@ -80,6 +86,9 @@ interface CatalogueCardOut {
   manaCost: string | null;
   cmc: number;
   typeLine: string;
+  power: string | null;
+  toughness: string | null;
+  loyalty: string | null;
   imgSmall: string;
   imgNormal: string;
   priceEur: number | null;
@@ -151,6 +160,9 @@ function project(card: ScryfallCard): CatalogueCardOut | null {
     manaCost,
     cmc: card.cmc ?? 0,
     typeLine: card.type_line ?? card.card_faces?.[0]?.type_line ?? '',
+    power: card.power ?? card.card_faces?.[0]?.power ?? null,
+    toughness: card.toughness ?? card.card_faces?.[0]?.toughness ?? null,
+    loyalty: card.loyalty ?? card.card_faces?.[0]?.loyalty ?? null,
     imgSmall: small,
     imgNormal: normal || small,
     priceEur: priceEur != null && Number.isFinite(priceEur) ? priceEur : null,

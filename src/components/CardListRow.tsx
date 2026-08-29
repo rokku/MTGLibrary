@@ -1,4 +1,5 @@
 import { ManaPips } from './ManaPips';
+import { CardHoverCard } from './CardHoverCard';
 import { useReveal } from '../hooks/useReveal';
 import type { GroupedCard } from '../lib/query';
 
@@ -34,6 +35,7 @@ export function CardList({ cards, onOpen }: CardListProps) {
         <ul>
           {cards.slice(0, count).map((c) => (
             <li key={c.catalogueId}>
+              <CardHoverCard catalogueId={c.catalogueId} className="block">
               <button
                 onClick={() => onOpen(c.catalogueId)}
                 className="grid w-full grid-cols-[1fr_auto_auto] items-center gap-2 border-b border-surface-1 px-3 py-2 text-left active:bg-surface-1"
@@ -48,6 +50,7 @@ export function CardList({ cards, onOpen }: CardListProps) {
                   <span className="block text-[10px] text-neutral-500">{conditionSummary(c)}</span>
                 </span>
               </button>
+              </CardHoverCard>
             </li>
           ))}
         </ul>

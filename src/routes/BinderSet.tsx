@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { Header } from '../components/Header';
+import { CardHoverCard } from '../components/CardHoverCard';
 import { useSettings } from '../hooks/useSettings';
 import { useCardImage } from '../hooks/useCardImage';
 import {
@@ -25,6 +26,7 @@ function Pocket({ slot, accent, onOpen }: { slot: BinderSlot; accent: string; on
   const { url } = useCardImage(owned ? slot.card.id : null, 'small');
 
   return (
+    <CardHoverCard catalogueId={slot.card.id} className="block">
     <button
       onClick={onOpen}
       className={`tap-target relative block w-full overflow-hidden rounded-lg focus:outline-none focus:ring-2 focus:ring-white/40 ${
@@ -54,6 +56,7 @@ function Pocket({ slot, accent, onOpen }: { slot: BinderSlot; accent: string; on
         </span>
       )}
     </button>
+    </CardHoverCard>
   );
 }
 

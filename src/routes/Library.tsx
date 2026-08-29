@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Cog6ToothIcon, ArrowUpTrayIcon, RectangleStackIcon } from '@heroicons/react/24/outline';
+import { Cog6ToothIcon, ArrowUpTrayIcon, RectangleStackIcon, Squares2X2Icon } from '@heroicons/react/24/outline';
 import { Header } from '../components/Header';
 import { FilterBar, type ViewMode } from '../components/FilterBar';
 import { FilterMenu } from '../components/FilterMenu';
@@ -88,6 +88,9 @@ export function Library() {
 
   const rightActions = (
     <>
+      <Link to="/decks" className="tap-target flex items-center justify-center rounded-lg active:bg-surface-2" aria-label="Commander decks">
+        <Squares2X2Icon className="h-6 w-6" />
+      </Link>
       <Link to="/binder" className="tap-target flex items-center justify-center rounded-lg active:bg-surface-2" aria-label="Binder browser">
         <RectangleStackIcon className="h-6 w-6" />
       </Link>

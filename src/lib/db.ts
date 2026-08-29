@@ -24,6 +24,9 @@ export interface CatalogueCard {
   manaCost: string | null;
   cmc: number;
   typeLine: string;
+  power: string | null; // creatures; string because of '*', '1+*', etc.
+  toughness: string | null;
+  loyalty: string | null; // planeswalkers
 
   // Display + offline
   imgSmall: string; // Scryfall URL fetched at import time
@@ -96,12 +99,41 @@ export interface AppMeta {
   value: unknown;
 }
 
+/** The deck-building roles a card can fill, matched to common EDH ratios. */
+export type RoleId = 'land' | 'ramp' | 'draw' | 'removal' | 'wipe' | 'synergy';
+
+/** A single card slotted into a deck under one role. */
+export interface DeckEntry {
+  catalogueId: string;
+  role: RoleId;
+  quantity: number; // usually 1 (singleton), but basics can stack
+}
+
+/**
+ * A Commander deck built around a chosen legendary. The commander fixes the
+ * colour-identity rules; the strategy fixes per-role target counts (editable);
+ * themes drive which owned cards count towards the synergy role.
+ */
+export interface Deck {
+  id: string;
+  name: string;
+  commanderId: string; // → CatalogueCard.id
+  colorIdentity: string; // derived from the commander, canonical WUBRG
+  strategyId: string; // which template the targets came from
+  targets: Record<RoleId, number>; // editable copy of the strategy's ratios
+  themes: string[]; // selected synergy theme ids
+  entries: DeckEntry[];
+  createdAt: number;
+  updatedAt: number;
+}
+
 export class CollectionDB extends Dexie {
   catalogue!: Table<CatalogueCard, string>;
   owned!: Table<OwnedCard, string>;
   images!: Table<CardImage, string>;
   imports!: Table<ImportRecord, string>;
   meta!: Table<AppMeta, string>;
+  decks!: Table<Deck, string>;
 
   constructor() {
     super('mtg-collection');
@@ -112,6 +144,11 @@ export class CollectionDB extends Dexie {
       images: 'key, catalogueId',
       imports: 'id, importedAt',
       meta: 'key',
+    });
+    // v2: decks for the Commander deck-builder. Purely additive — existing
+    // stores are carried forward untouched.
+    this.version(2).stores({
+      decks: 'id, name, commanderId, updatedAt',
     });
   }
 }
