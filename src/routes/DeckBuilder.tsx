@@ -185,8 +185,9 @@ function CandidateRow({
 }) {
   const entry = deck.entries.find((e) => e.catalogueId === card.id && e.role === role);
   const added = !!entry;
-  // Singleton: only basics / "any number" cards may stack beyond one.
-  const maxCopies = isBasicLand(card) || allowsAnyNumber(card) ? ownedQty : 1;
+  // Singleton: only basics / "any number" cards may stack beyond one. Basics are
+  // unlimited (auto-build treats them as free), so don't cap them at what's owned.
+  const maxCopies = isBasicLand(card) ? Infinity : allowsAnyNumber(card) ? ownedQty : 1;
 
   return (
     <li className="flex items-center gap-2.5 rounded-lg bg-surface-1 p-1.5">
@@ -281,7 +282,8 @@ function RoleSection({
             </span>
           </span>
           <span className="mb-1.5 mt-0.5 block text-xs text-neutral-500">
-            {candidates.length} in your collection{addedCount ? ` · ${addedCount} in deck` : ''}
+            {addedCount} in deck
+            {candidates.length - addedCount > 0 ? ` · ${candidates.length - addedCount} to add from your collection` : ''}
           </span>
           <span className="block h-1.5 overflow-hidden rounded-full bg-surface-3">
             <span
@@ -403,7 +405,20 @@ export function DeckBuilder() {
     return m;
   }, [owned]);
 
-  // Bucket every legal owned card into the roles it can fill for this deck.
+  // Catalogue rows for cards actually in the deck (may include basics the user
+  // doesn't own), plus the commander — everything legality needs to resolve.
+  const entryCats = useLiveQuery(async () => {
+    if (!deck) return new Map<string, CatalogueCard>();
+    const ids = [...new Set([deck.commanderId, ...deck.entries.map((e) => e.catalogueId)])];
+    const cats = await db.catalogue.bulkGet(ids);
+    const m = new Map<string, CatalogueCard>();
+    for (const c of cats) if (c) m.set(c.id, c);
+    return m;
+  }, [deck?.entries, deck?.commanderId]);
+
+  // For each role: the cards actually in the deck (incl. basics you don't own)
+  // first, then the owned candidates you could still add. So an expanded
+  // accordion reflects the deck — the "in deck" rows match the export exactly.
   const candidates = useMemo(() => {
     const result = EMPTY_ROLES();
     if (!deck || !catMap) return result;
@@ -422,6 +437,17 @@ export function DeckBuilder() {
       }
     }
 
+    // Pull in cards that are in the deck but aren't owned candidates — basics,
+    // or cards no longer eligible after a theme change — so the accordion shows
+    // everything the deck actually contains for the role.
+    if (entryCats) {
+      for (const e of deck.entries) {
+        if (e.catalogueId === deck.commanderId) continue;
+        const cat = entryCats.get(e.catalogueId);
+        if (cat && !result[e.role].some((c) => c.id === cat.id)) result[e.role].push(cat);
+      }
+    }
+
     for (const role of Object.keys(result) as RoleId[]) {
       result[role].sort((x, y) => {
         const xa = assigned.get(x.id) === role ? 0 : 1;
@@ -433,18 +459,7 @@ export function DeckBuilder() {
       result[role] = dedupeByCard(result[role]);
     }
     return result;
-  }, [deck, catMap, ownedQty]);
-
-  // Catalogue rows for cards actually in the deck (may include basics the user
-  // doesn't own), plus the commander — everything legality needs to resolve.
-  const entryCats = useLiveQuery(async () => {
-    if (!deck) return new Map<string, CatalogueCard>();
-    const ids = [...new Set([deck.commanderId, ...deck.entries.map((e) => e.catalogueId)])];
-    const cats = await db.catalogue.bulkGet(ids);
-    const m = new Map<string, CatalogueCard>();
-    for (const c of cats) if (c) m.set(c.id, c);
-    return m;
-  }, [deck?.entries, deck?.commanderId]);
+  }, [deck, catMap, ownedQty, entryCats]);
 
   const legality = useMemo(
     () => (deck ? validateDeck(deck, commander ?? undefined, entryCats ?? new Map()) : null),
