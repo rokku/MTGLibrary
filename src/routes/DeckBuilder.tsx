@@ -33,6 +33,7 @@ import {
   allowsAnyNumber,
   cardFacts,
   changeEntryQuantity,
+  commanderTribes,
   dedupeByCard,
   deckSize,
   eligibleRoles,
@@ -51,8 +52,8 @@ import {
 } from '../lib/deck';
 
 /** Short tag for a synergy candidate: is it the engine, the reward, or both? */
-function synergyTag(card: CatalogueCard, themes: string[]): string | null {
-  const k = synergyKinds(cardFacts(card), themes);
+function synergyTag(card: CatalogueCard, themes: string[], tribes: string[]): string | null {
+  const k = synergyKinds(cardFacts(card), themes, tribes);
   if (k.enabler && k.payoff) return 'Enabler · Payoff';
   if (k.payoff) return 'Payoff';
   if (k.enabler) return 'Enabler';
@@ -247,6 +248,7 @@ function RoleSection({
   candidates,
   ownedQty,
   accent,
+  tribes,
   onOpenCard,
 }: {
   deck: Deck;
@@ -254,6 +256,7 @@ function RoleSection({
   candidates: CatalogueCard[];
   ownedQty: Map<string, number>;
   accent: string;
+  tribes: string[];
   onOpenCard: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -310,7 +313,7 @@ function RoleSection({
                   role={role.id}
                   ownedQty={ownedQty.get(c.id) ?? 1}
                   accent={accent}
-                  tag={role.id === 'synergy' ? synergyTag(c, deck.themes) : null}
+                  tag={role.id === 'synergy' ? synergyTag(c, deck.themes, tribes) : null}
                   onOpen={() => onOpenCard(c.id)}
                 />
               ))}
@@ -405,6 +408,13 @@ export function DeckBuilder() {
     return m;
   }, [owned]);
 
+  // For a kindred deck, the commander's tribe(s) — so creatures of that type
+  // count as synergy even when their text says nothing typal.
+  const tribes = useMemo(
+    () => (deck && commander && deck.themes.includes('kindred') ? commanderTribes(commander) : []),
+    [deck?.themes, commander],
+  );
+
   // Catalogue rows for cards actually in the deck (may include basics the user
   // doesn't own), plus the commander — everything legality needs to resolve.
   const entryCats = useLiveQuery(async () => {
@@ -429,7 +439,7 @@ export function DeckBuilder() {
       if (id === deck.commanderId) continue;
       if (!ownedQty.has(id)) continue;
       if (!withinIdentity(cat.colorIdentity, deck.colorIdentity)) continue;
-      const roles = eligibleRoles(cardFacts(cat), deck.themes);
+      const roles = eligibleRoles(cardFacts(cat), deck.themes, tribes);
       const a = assigned.get(id);
       for (const role of roles) {
         if (a && a !== role) continue; // already slotted elsewhere
@@ -459,7 +469,7 @@ export function DeckBuilder() {
       result[role] = dedupeByCard(result[role]);
     }
     return result;
-  }, [deck, catMap, ownedQty, entryCats]);
+  }, [deck, catMap, ownedQty, entryCats, tribes]);
 
   const legality = useMemo(
     () => (deck ? validateDeck(deck, commander ?? undefined, entryCats ?? new Map()) : null),
@@ -621,6 +631,7 @@ export function DeckBuilder() {
             candidates={candidates[role.id]}
             ownedQty={ownedQty}
             accent={settings.accent}
+            tribes={tribes}
             onOpenCard={(id) => navigate(`/card/${id}`)}
           />
         ))}

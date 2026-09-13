@@ -338,13 +338,76 @@ export function stapleRoles(facts: CardFacts): Set<RoleId> {
   return roles;
 }
 
+// ── Kindred (typal) tribe detection ──────────────────────────────────
+
+// Words that follow the typal patterns below but aren't creature types.
+const TRIBE_STOPWORDS = new Set([
+  'creature', 'creatures', 'permanent', 'permanents', 'token', 'tokens', 'card', 'cards',
+  'spell', 'spells', 'player', 'players', 'opponent', 'opponents', 'planeswalker',
+  'planeswalkers', 'artifact', 'artifacts', 'enchantment', 'enchantments', 'land', 'lands',
+  'you', 'your', 'they', 'this', 'that', 'each', 'other', 'another', 'the', 'target',
+  'nonland', 'nontoken', 'legendary', 'attacking', 'blocking', 'tapped', 'untapped',
+]);
+
+/** Singularise a (possibly plural) creature type for matching. */
+function singularType(t: string): string {
+  const s = t.toLowerCase();
+  if (s.endsWith('ves')) return `${s.slice(0, -3)}f`; // Elves → elf, Wolves → wolf
+  if (s.endsWith('ies')) return `${s.slice(0, -3)}y`; // Allies → ally
+  if (s.endsWith('s')) return s.slice(0, -1);
+  return s;
+}
+
+/**
+ * The creature type(s) a commander cares about, for a kindred (typal) deck.
+ * Prefers types named in a typal pattern in its text (e.g. "other Ninjas you
+ * control get +1/+1" → Ninja), falling back to the commander's own creature
+ * subtypes. Returned singularised and lower-cased. Creature types are Capitalised
+ * in oracle text, which lets us tell "Ninjas" from "creatures".
+ */
+export function commanderTribes(commander: CatalogueCard): string[] {
+  const tribes = new Set<string>();
+  const text = commander.oracleText ?? '';
+  const patterns = [
+    /\bother ([A-Z][a-z]+)s?\b/g,
+    /\b([A-Z][a-z]+)s? you control\b/g,
+    /\b([A-Z][a-z]+) creatures?\b/g,
+    /\beach ([A-Z][a-z]+)s?\b/g,
+  ];
+  for (const re of patterns) {
+    for (const m of text.matchAll(re)) {
+      const w = m[1];
+      if (w && !TRIBE_STOPWORDS.has(w.toLowerCase())) tribes.add(singularType(w));
+    }
+  }
+  // Fall back to the commander's own subtypes (after the em dash on the type line).
+  if (tribes.size === 0) {
+    const dash = commander.typeLine.split('—')[1];
+    if (dash) {
+      for (const w of dash.trim().split(/\s+/)) {
+        if (w && !TRIBE_STOPWORDS.has(w.toLowerCase())) tribes.add(singularType(w));
+      }
+    }
+  }
+  return [...tribes];
+}
+
+/** Is this card a creature of one of the deck's tribes? */
+function isTribeMember(typeLine: string, tribes: string[]): boolean {
+  if (!typeLine.includes('creature')) return false;
+  for (const tribe of tribes) {
+    if (new RegExp(`\\b${tribe}s?\\b`).test(typeLine)) return true;
+  }
+  return false;
+}
+
 /** Whether a card enables and/or pays off any of the selected themes. */
 export interface SynergyKind {
   enabler: boolean;
   payoff: boolean;
 }
 
-export function synergyKinds(facts: CardFacts, themeIds: string[]): SynergyKind {
+export function synergyKinds(facts: CardFacts, themeIds: string[], tribes: string[] = []): SynergyKind {
   const out: SynergyKind = { enabler: false, payoff: false };
   if (themeIds.length === 0) return out;
   const hay = `${facts.typeLine} ${facts.oracleText} ${facts.keywords.join(' ')}`;
@@ -355,12 +418,18 @@ export function synergyKinds(facts: CardFacts, themeIds: string[]): SynergyKind 
     if (!out.payoff && theme.payoffs.some((re) => re.test(hay))) out.payoff = true;
     if (out.enabler && out.payoff) break;
   }
+  // A creature of the deck's tribe is a kindred enabler even with no typal text —
+  // e.g. a vanilla Ninja in a Ninja deck. Payoffs (lords/anthems) already match
+  // the kindred signatures above.
+  if (!out.enabler && tribes.length > 0 && themeIds.includes('kindred') && isTribeMember(facts.typeLine, tribes)) {
+    out.enabler = true;
+  }
   return out;
 }
 
 /** Does a card support any of the selected themes (as an enabler or a payoff)? */
-export function matchesThemes(facts: CardFacts, themeIds: string[]): boolean {
-  const k = synergyKinds(facts, themeIds);
+export function matchesThemes(facts: CardFacts, themeIds: string[], tribes: string[] = []): boolean {
+  const k = synergyKinds(facts, themeIds, tribes);
   return k.enabler || k.payoff;
 }
 
@@ -371,10 +440,10 @@ export function isWincon(facts: CardFacts): boolean {
 }
 
 /** Every role a card is eligible for, given the deck's selected themes. */
-export function eligibleRoles(facts: CardFacts, themeIds: string[]): Set<RoleId> {
+export function eligibleRoles(facts: CardFacts, themeIds: string[], tribes: string[] = []): Set<RoleId> {
   const roles = stapleRoles(facts);
   if (roles.has('land')) return roles;
-  if (matchesThemes(facts, themeIds)) roles.add('synergy');
+  if (matchesThemes(facts, themeIds, tribes)) roles.add('synergy');
   if (isWincon(facts)) roles.add('wincon');
   return roles;
 }
@@ -856,6 +925,9 @@ export function autoBuild(
   // Collapse the collection to one printing per card, then shuffle so picks
   // within a mana-value bucket aren't biased toward the start of the alphabet.
   const owned = shuffle(dedupeByCard([...byId.values()].filter((c) => ownedQty.has(c.id))));
+  // For a kindred deck, creatures of the commander's tribe count as synergy even
+  // with no typal text (e.g. a plain Ninja in a Ninja deck).
+  const tribes = deck.themes.includes('kindred') ? commanderTribes(commander) : [];
   let nonBasicAdded = 0;
 
   // Non-land roles: fill each toward the shared curve quota rather than by
@@ -881,7 +953,7 @@ export function autoBuild(
         !used.has(singletonKey(c)) &&
         !isBasicLand(c) &&
         withinIdentity(c.colorIdentity, deck.colorIdentity) &&
-        eligibleRoles(cardFacts(c), deck.themes).has(role),
+        eligibleRoles(cardFacts(c), deck.themes, tribes).has(role),
     );
     addSpells(pickForCurve(cands, target, quota, bucketUsed), role);
   }
@@ -897,16 +969,16 @@ export function autoBuild(
         !used.has(singletonKey(c)) &&
         !isBasicLand(c) &&
         withinIdentity(c.colorIdentity, deck.colorIdentity) &&
-        eligibleRoles(cardFacts(c), deck.themes).has('synergy'),
+        eligibleRoles(cardFacts(c), deck.themes, tribes).has('synergy'),
     );
     const payoffTarget = Math.min(synergyTarget, Math.round(synergyTarget * PAYOFF_FRACTION));
     const enablerTarget = synergyTarget - payoffTarget;
 
-    const payoffCands = pool.filter((c) => synergyKinds(cardFacts(c), deck.themes).payoff);
+    const payoffCands = pool.filter((c) => synergyKinds(cardFacts(c), deck.themes, tribes).payoff);
     const gotPayoffs = pickForCurve(payoffCands, payoffTarget, quota, bucketUsed);
     addSpells(gotPayoffs, 'synergy');
 
-    const enablerCands = pool.filter((c) => !used.has(singletonKey(c)) && synergyKinds(cardFacts(c), deck.themes).enabler);
+    const enablerCands = pool.filter((c) => !used.has(singletonKey(c)) && synergyKinds(cardFacts(c), deck.themes, tribes).enabler);
     const gotEnablers = pickForCurve(enablerCands, enablerTarget, quota, bucketUsed);
     addSpells(gotEnablers, 'synergy');
 
