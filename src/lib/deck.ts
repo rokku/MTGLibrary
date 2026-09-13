@@ -554,16 +554,65 @@ export function deckSize(entries: DeckEntry[]): number {
 
 // ── Legality ─────────────────────────────────────────────────────────
 
-/** Keep one printing per card (by oracle id), preserving order. */
-export function dedupeByOracle(cards: CatalogueCard[]): CatalogueCard[] {
+/**
+ * Identity for the singleton rule. Magic card names are unique per distinct
+ * card, so the name is the most robust key — more reliable than oracle_id, which
+ * can be blank or (in older cached catalogue builds) differ across printings.
+ * Two entries sharing this key are the same card and must collapse to one,
+ * unless the card is a basic land or explicitly allows any number of copies.
+ */
+export function singletonKey(card: { name: string }): string {
+  return card.name.trim().toLowerCase();
+}
+
+/** Keep one printing per card (by name), preserving order. */
+export function dedupeByCard(cards: CatalogueCard[]): CatalogueCard[] {
   const seen = new Set<string>();
   const out: CatalogueCard[] = [];
   for (const c of cards) {
-    if (seen.has(c.oracleId)) continue;
-    seen.add(c.oracleId);
+    const k = singletonKey(c);
+    if (seen.has(k)) continue;
+    seen.add(k);
     out.push(c);
   }
   return out;
+}
+
+/**
+ * Collapse singleton violations so a deck obeys the rules: any card that isn't a
+ * basic land or an explicit "any number" card is reduced to a single copy, and
+ * duplicate entries for the same card (e.g. two printings) are merged into one.
+ * Returns the same deck reference when it's already legal (so callers can skip a
+ * needless save). Entries whose card isn't in `byId` are left untouched.
+ */
+export function enforceSingleton(deck: Deck, byId: Map<string, CatalogueCard>): Deck {
+  const seen = new Set<string>();
+  const entries: DeckEntry[] = [];
+  let changed = false;
+  for (const e of deck.entries) {
+    const card = byId.get(e.catalogueId);
+    if (!card) {
+      entries.push(e);
+      continue;
+    }
+    if (allowsAnyNumber(card)) {
+      entries.push(e);
+      continue;
+    }
+    const k = singletonKey(card);
+    if (seen.has(k)) {
+      changed = true; // a duplicate printing/entry of a singleton card — drop it
+      continue;
+    }
+    seen.add(k);
+    if (e.quantity > 1) {
+      entries.push({ ...e, quantity: 1 });
+      changed = true;
+    } else {
+      entries.push(e);
+    }
+  }
+  return changed ? { ...deck, entries } : deck;
 }
 
 /** A card is a basic land — unlimited copies, and free to add to any deck. */
@@ -643,20 +692,21 @@ export function validateDeck(
     });
   }
 
-  // Aggregate copies by oracle id — singleton is per card, so two printings of
+  // Aggregate copies by card name — singleton is per card, so two printings of
   // the same card (e.g. Terramorphic Expanse from different sets) still count as
-  // duplicates.
-  const byOracle = new Map<string, { qty: number; card: CatalogueCard }>();
+  // duplicates, regardless of oracle_id.
+  const byCard = new Map<string, { qty: number; card: CatalogueCard }>();
   for (const e of deck.entries) {
     const cat = byId.get(e.catalogueId);
     if (!cat) continue;
-    const cur = byOracle.get(cat.oracleId);
+    const k = singletonKey(cat);
+    const cur = byCard.get(k);
     if (cur) cur.qty += e.quantity;
-    else byOracle.set(cat.oracleId, { qty: e.quantity, card: cat });
+    else byCard.set(k, { qty: e.quantity, card: cat });
   }
 
-  for (const { qty, card } of byOracle.values()) {
-    if (commander && card.oracleId === commander.oracleId) {
+  for (const { qty, card } of byCard.values()) {
+    if (commander && singletonKey(card) === singletonKey(commander)) {
       issues.push({ level: 'error', message: `${card.name} is your commander and can’t also be in the 99.` });
     }
     if (qty > 1 && !allowsAnyNumber(card)) {
@@ -799,12 +849,13 @@ export function autoBuild(
   basicsMode: 'free' | 'owned' = 'free',
 ): AutoBuildResult {
   const entries: DeckEntry[] = [];
-  // Track picks by oracle id so alternate printings of a card we've already
-  // taken (or of the commander) are treated as the same singleton card.
-  const used = new Set<string>([commander.oracleId]);
+  // Track picks by card name so alternate printings of a card we've already
+  // taken (or of the commander) are treated as the same singleton card — the
+  // name is robust even when a card's oracle_id is missing or inconsistent.
+  const used = new Set<string>([singletonKey(commander)]);
   // Collapse the collection to one printing per card, then shuffle so picks
   // within a mana-value bucket aren't biased toward the start of the alphabet.
-  const owned = shuffle(dedupeByOracle([...byId.values()].filter((c) => ownedQty.has(c.id))));
+  const owned = shuffle(dedupeByCard([...byId.values()].filter((c) => ownedQty.has(c.id))));
   let nonBasicAdded = 0;
 
   // Non-land roles: fill each toward the shared curve quota rather than by
@@ -818,7 +869,7 @@ export function autoBuild(
   const addSpells = (cards: CatalogueCard[], role: RoleId) => {
     for (const c of cards) {
       entries.push({ catalogueId: c.id, role, quantity: 1 });
-      used.add(c.oracleId);
+      used.add(singletonKey(c));
       nonBasicAdded++;
     }
   };
@@ -827,7 +878,7 @@ export function autoBuild(
     if (target <= 0) continue;
     const cands = owned.filter(
       (c) =>
-        !used.has(c.oracleId) &&
+        !used.has(singletonKey(c)) &&
         !isBasicLand(c) &&
         withinIdentity(c.colorIdentity, deck.colorIdentity) &&
         eligibleRoles(cardFacts(c), deck.themes).has(role),
@@ -843,7 +894,7 @@ export function autoBuild(
   if (synergyTarget > 0) {
     const pool = owned.filter(
       (c) =>
-        !used.has(c.oracleId) &&
+        !used.has(singletonKey(c)) &&
         !isBasicLand(c) &&
         withinIdentity(c.colorIdentity, deck.colorIdentity) &&
         eligibleRoles(cardFacts(c), deck.themes).has('synergy'),
@@ -855,13 +906,13 @@ export function autoBuild(
     const gotPayoffs = pickForCurve(payoffCands, payoffTarget, quota, bucketUsed);
     addSpells(gotPayoffs, 'synergy');
 
-    const enablerCands = pool.filter((c) => !used.has(c.oracleId) && synergyKinds(cardFacts(c), deck.themes).enabler);
+    const enablerCands = pool.filter((c) => !used.has(singletonKey(c)) && synergyKinds(cardFacts(c), deck.themes).enabler);
     const gotEnablers = pickForCurve(enablerCands, enablerTarget, quota, bucketUsed);
     addSpells(gotEnablers, 'synergy');
 
     const filled = gotPayoffs.length + gotEnablers.length;
     if (filled < synergyTarget) {
-      const rest = pool.filter((c) => !used.has(c.oracleId));
+      const rest = pool.filter((c) => !used.has(singletonKey(c)));
       addSpells(pickForCurve(rest, synergyTarget - filled, quota, bucketUsed), 'synergy');
     }
   }
@@ -882,7 +933,7 @@ export function autoBuild(
   const nonBasicLands = owned
     .filter(
       (c) =>
-        !used.has(c.oracleId) &&
+        !used.has(singletonKey(c)) &&
         !isBasicLand(c) &&
         cardFacts(c).typeLine.includes('land') &&
         withinIdentity(c.colorIdentity, deck.colorIdentity),
@@ -895,7 +946,7 @@ export function autoBuild(
 
   for (const nb of nonBasicLands.slice(0, nonbasicTarget)) {
     entries.push({ catalogueId: nb.c.id, role: 'land', quantity: 1 });
-    used.add(nb.c.oracleId);
+    used.add(singletonKey(nb.c));
     landCount++;
     nonBasicAdded++;
   }

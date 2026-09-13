@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
@@ -33,9 +33,10 @@ import {
   allowsAnyNumber,
   cardFacts,
   changeEntryQuantity,
-  dedupeByOracle,
+  dedupeByCard,
   deckSize,
   eligibleRoles,
+  enforceSingleton,
   isBasicLand,
   getDeck,
   roleCounts,
@@ -429,7 +430,7 @@ export function DeckBuilder() {
       });
       // Collapse alternate printings — one row per card (keeps the added one,
       // since added cards sort first).
-      result[role] = dedupeByOracle(result[role]);
+      result[role] = dedupeByCard(result[role]);
     }
     return result;
   }, [deck, catMap, ownedQty]);
@@ -449,6 +450,15 @@ export function DeckBuilder() {
     () => (deck ? validateDeck(deck, commander ?? undefined, entryCats ?? new Map()) : null),
     [deck, commander, entryCats],
   );
+
+  // Self-heal decks built by older versions that stored duplicate non-basic
+  // lands (singleton was keyed on the printing, not the card). Once the entries'
+  // cards resolve, collapse any illegal duplicates back to a single copy.
+  useEffect(() => {
+    if (!deck || !entryCats || entryCats.size === 0) return;
+    const cleaned = enforceSingleton(deck, entryCats);
+    if (cleaned !== deck) void saveDeck(cleaned);
+  }, [deck, entryCats]);
 
   const [building, setBuilding] = useState(false);
   const [buildResult, setBuildResult] = useState<AutoBuildResult | null>(null);

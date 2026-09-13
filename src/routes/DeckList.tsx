@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Dialog } from '@headlessui/react';
@@ -21,9 +21,11 @@ import {
   type DeckRow,
   deckRowsByRole,
   deckSize,
+  enforceSingleton,
   getDeck,
   manaCurve,
   moxfieldExport,
+  saveDeck,
 } from '../lib/deck';
 
 const CURVE_LABELS = ['0', '1', '2', '3', '4', '5', '6', '7+'];
@@ -215,6 +217,14 @@ export function DeckList() {
   }, [deck?.entries, deck?.commanderId]);
 
   const commander = deck && byId ? byId.get(deck.commanderId) : undefined;
+
+  // Self-heal decks from older versions that stored duplicate non-basic lands.
+  useEffect(() => {
+    if (!deck || !byId || byId.size === 0) return;
+    const cleaned = enforceSingleton(deck, byId);
+    if (cleaned !== deck) void saveDeck(cleaned);
+  }, [deck, byId]);
+
   const rowsByRole = useMemo(() => (deck && byId ? deckRowsByRole(deck, byId) : null), [deck, byId]);
   const curve = useMemo(() => (deck && byId ? manaCurve(deck, commander, byId) : null), [deck, byId, commander]);
   const exportText = useMemo(() => (deck && byId ? moxfieldExport(deck, commander, byId) : ''), [deck, byId, commander]);
