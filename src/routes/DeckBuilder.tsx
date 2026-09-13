@@ -43,10 +43,20 @@ import {
   setStrategy,
   setTarget,
   suggestThemes,
+  synergyKinds,
   toggleTheme,
   validateDeck,
   withinIdentity,
 } from '../lib/deck';
+
+/** Short tag for a synergy candidate: is it the engine, the reward, or both? */
+function synergyTag(card: CatalogueCard, themes: string[]): string | null {
+  const k = synergyKinds(cardFacts(card), themes);
+  if (k.enabler && k.payoff) return 'Enabler · Payoff';
+  if (k.payoff) return 'Payoff';
+  if (k.enabler) return 'Enabler';
+  return null;
+}
 
 const EMPTY_ROLES = (): Record<RoleId, CatalogueCard[]> => ({
   land: [], ramp: [], draw: [], removal: [], wipe: [], synergy: [], wincon: [],
@@ -161,6 +171,7 @@ function CandidateRow({
   role,
   ownedQty,
   accent,
+  tag,
   onOpen,
 }: {
   deck: Deck;
@@ -168,6 +179,7 @@ function CandidateRow({
   role: RoleId;
   ownedQty: number;
   accent: string;
+  tag?: string | null;
   onOpen: () => void;
 }) {
   const entry = deck.entries.find((e) => e.catalogueId === card.id && e.role === role);
@@ -186,6 +198,11 @@ function CandidateRow({
           {ownedQty > 1 && <span className="shrink-0 text-[11px] text-neutral-500">×{ownedQty}</span>}
         </span>
         <span className="block truncate text-[11px] text-neutral-500">
+          {tag && (
+            <span className="mr-1 rounded bg-surface-3 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-neutral-300">
+              {tag}
+            </span>
+          )}
           {card.cmc} MV · {card.typeLine}
         </span>
       </button>
@@ -290,6 +307,7 @@ function RoleSection({
                   role={role.id}
                   ownedQty={ownedQty.get(c.id) ?? 1}
                   accent={accent}
+                  tag={role.id === 'synergy' ? synergyTag(c, deck.themes) : null}
                   onOpen={() => onOpenCard(c.id)}
                 />
               ))}

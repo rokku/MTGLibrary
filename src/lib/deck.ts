@@ -80,145 +80,146 @@ export interface Theme {
   id: string;
   name: string;
   blurb: string;
-  /** Signatures that mark a card (or the commander) as belonging to this theme. */
-  signatures: RegExp[];
+  /** Cards that make the engine run (generators, sac outlets, flicker effects). */
+  enablers: RegExp[];
+  /** Cards that convert the engine into advantage or damage (the reward). */
+  payoffs: RegExp[];
 }
 
 /**
- * A card matches a theme when its (lowercased) oracle text or type line hits any
- * signature. The same signatures score the commander so we can suggest themes.
+ * A card matches a theme when its (lowercased) oracle text/type line hits any of
+ * the theme's enabler or payoff signatures. Splitting the two lets the builder
+ * fill synergy slots with a mix of both — the engine and the reward — instead of
+ * whichever happens to sort first. The combined set also scores the commander so
+ * we can suggest themes.
  */
 export const THEMES: Theme[] = [
   {
     id: 'tokens',
     name: 'Tokens',
     blurb: 'Go wide with creature tokens.',
-    signatures: [/create .*token/, /creature token/, /tokens? (are|is|would be) created/, /populate/, /amass/, /for each creature you control/],
+    enablers: [/create .*token/, /creature token/, /tokens? (are|is|would be) created/, /populate/, /amass/],
+    payoffs: [/for each creature you control/, /for each token/, /whenever a(nother)? (creature|token) (you control )?enters/, /creatures you control get \+/],
   },
   {
     id: 'counters',
     name: '+1/+1 Counters',
     blurb: 'Grow creatures with counters.',
-    signatures: [/\+1\/\+1 counter/, /proliferate/, /counter on/],
+    enablers: [/\+1\/\+1 counter/, /proliferate/, /counter on/],
+    payoffs: [/for each \+1\/\+1 counter/, /number of \+1\/\+1 counters/, /counter on it,/, /with a \+1\/\+1 counter/],
   },
   {
     id: 'aristocrats',
     name: 'Sacrifice / Death',
     blurb: 'Sacrifice creatures and cash in on death triggers.',
-    signatures: [
-      /sacrifice (a|another|an|one|two|three|\d)/,
-      /whenever .*dies/,
-      /when(ever)? .*(creature|it) dies/,
-      /dies,? /,
-      /each opponent loses/,
-      /when .* dies,/,
-    ],
+    enablers: [/sacrifice (a|another|an|one|two|three|\d)/, /sacrifice a creature:/, /whenever you sacrifice/],
+    payoffs: [/whenever .*dies/, /when(ever)? .*(creature|it) dies/, /dies,? /, /each opponent loses/, /when .* dies,/],
   },
   {
     id: 'blink',
     name: 'Blink / Flicker (ETB)',
     blurb: 'Re-trigger enter-the-battlefield effects.',
-    signatures: [
+    enablers: [
       /flicker/,
       /exile .*, then return/,
       /exile (target|another target|up to|any number of|those).*return/,
       /return .*to the battlefield under (your|its owner'?s?) control/,
-      /when(ever)? .* enters(?: the battlefield)?, /,
     ],
+    payoffs: [/when(ever)? .* enters(?: the battlefield)?, /],
   },
   {
     id: 'kindred',
     name: 'Kindred / Typal',
     blurb: 'Reward sharing a creature type (tribal).',
-    signatures: [
-      /\bother .+ you control get/,
-      /creatures you control get \+/,
-      /choose a creature type/,
-      /of the chosen type/,
-      /creatures? of the chosen/,
-      /whenever another \w+ (you control )?enters/,
-      /\bother \w+ you control/,
-    ],
+    enablers: [/choose a creature type/, /of the chosen type/, /creatures? of the chosen/, /whenever another \w+ (you control )?enters/],
+    payoffs: [/\bother .+ you control get/, /creatures you control get \+/, /\bother \w+ you control/],
   },
   {
     id: 'superfriends',
     name: 'Superfriends',
     blurb: 'Planeswalkers and loyalty.',
-    signatures: [
+    enablers: [
       /planeswalker —/, // the card is itself a planeswalker (type line)
-      /planeswalkers? you control/,
       /loyalty counter/,
-      /loyalty abilit/,
       /proliferate/,
-      /each planeswalker/,
       /activate .* loyalty/,
     ],
+    payoffs: [/planeswalkers? you control/, /each planeswalker/, /loyalty abilit/],
   },
   {
     id: 'spellslinger',
     name: 'Spellslinger',
     blurb: 'Instants and sorceries matter.',
-    signatures: [/instant or sorcery/, /whenever you cast (an|a|your)/, /noncreature spell/, /prowess/, /magecraft/],
+    enablers: [/instant or sorcery/, /noncreature spell/, /copy (target|that) (instant|sorcery|spell)/],
+    payoffs: [/whenever you cast (an|a|your)/, /prowess/, /magecraft/],
   },
   {
     id: 'lifegain',
     name: 'Lifegain',
     blurb: 'Gaining life powers your engine.',
-    signatures: [/gain \d* ?life/, /gain life/, /whenever you gain life/, /lifelink/],
+    enablers: [/gain \d* ?life/, /gain life/, /lifelink/],
+    payoffs: [/whenever you gain life/, /if you gained life/],
   },
   {
     id: 'graveyard',
     name: 'Graveyard / Reanimator',
     blurb: 'Recur and reanimate from the yard.',
-    signatures: [
+    enablers: [/flashback/, /escape/, /unearth/, /disturb/, /delve/, /into your graveyard from/],
+    payoffs: [
       /from your graveyard/,
       /return .*from .*graveyard/,
       /card in your graveyard/,
       /cards? in (a|your|their|target player'?s?) graveyard/,
-      /flashback/, /escape/, /unearth/, /disturb/, /delve/,
     ],
   },
   {
     id: 'artifacts',
     name: 'Artifacts',
     blurb: 'Artifacts and affinity payoffs.',
-    signatures: [/artifact/, /affinity/, /metalcraft/, /improvise/],
+    enablers: [/artifact/, /improvise/],
+    payoffs: [/affinity/, /metalcraft/, /for each artifact/, /artifacts? you control/],
   },
   {
     id: 'enchantments',
     name: 'Enchantments',
     blurb: 'Enchantress-style enchantment matters.',
-    signatures: [/enchantment/, /constellation/, /aura/, /saga/],
+    enablers: [/enchantment/, /aura/, /saga/],
+    payoffs: [/constellation/, /for each enchantment/, /enchantments? you control/],
   },
   {
     id: 'voltron',
     name: 'Voltron / Equipment',
     blurb: 'Suit up one creature and swing.',
-    signatures: [/equip/, /equipped creature/, /attached/, /aura/, /whenever .*deals combat damage to a player/],
+    enablers: [/equip/, /aura/, /attach/],
+    payoffs: [/equipped creature/, /whenever .*deals combat damage to a player/, /enchanted creature/],
   },
   {
     id: 'landfall',
     name: 'Landfall / Lands',
     blurb: 'Extra land drops trigger payoffs.',
-    signatures: [/landfall/, /land enters/, /a land enters/, /play an additional land/, /play a land/],
+    enablers: [/play an additional land/, /play a land/, /search your library for .*land/, /additional land/],
+    payoffs: [/landfall/, /land enters/, /a land enters/, /whenever a land you control/],
   },
   {
     id: 'draw-matters',
     name: 'Draw-Matters / Wheels',
     blurb: 'Drawing extra cards triggers payoffs.',
-    signatures: [/whenever you draw/, /draws? (a|your) (\w+ )?card/, /each player draws/, /no maximum hand size/],
+    enablers: [/draws? (a|your) (\w+ )?card/, /each player draws/, /no maximum hand size/, /draw two/],
+    payoffs: [/whenever you draw/, /if you('ve| have) drawn/, /second card/],
   },
   {
     id: 'aggro-combat',
     name: 'Combat / Attack Triggers',
     blurb: 'Reward attacking and dealing combat damage.',
-    signatures: [/whenever .*attacks/, /combat damage to a player/, /extra combat/, /whenever .*deals combat damage/, /double strike/],
+    enablers: [/extra combat/, /double strike/, /must be blocked/, /can't be blocked/],
+    payoffs: [/whenever .*attacks/, /combat damage to a player/, /whenever .*deals combat damage/],
   },
   {
     id: 'mill',
     name: 'Mill / Self-Mill',
     blurb: 'Fill graveyards for value or wins.',
-    signatures: [/mill/, /into (your|their) graveyard from (your|their) library/, /put the top .*library into/],
+    enablers: [/mill/, /into (your|their) graveyard from (your|their) library/, /put the top .*library into/],
+    payoffs: [/for each card in .*graveyard/, /whenever .* is put into .*graveyard/],
   },
 ];
 
@@ -337,15 +338,30 @@ export function stapleRoles(facts: CardFacts): Set<RoleId> {
   return roles;
 }
 
-/** Does a card support any of the selected themes? */
-export function matchesThemes(facts: CardFacts, themeIds: string[]): boolean {
-  if (themeIds.length === 0) return false;
+/** Whether a card enables and/or pays off any of the selected themes. */
+export interface SynergyKind {
+  enabler: boolean;
+  payoff: boolean;
+}
+
+export function synergyKinds(facts: CardFacts, themeIds: string[]): SynergyKind {
+  const out: SynergyKind = { enabler: false, payoff: false };
+  if (themeIds.length === 0) return out;
   const hay = `${facts.typeLine} ${facts.oracleText} ${facts.keywords.join(' ')}`;
   for (const id of themeIds) {
     const theme = themeById(id);
-    if (theme && theme.signatures.some((re) => re.test(hay))) return true;
+    if (!theme) continue;
+    if (!out.enabler && theme.enablers.some((re) => re.test(hay))) out.enabler = true;
+    if (!out.payoff && theme.payoffs.some((re) => re.test(hay))) out.payoff = true;
+    if (out.enabler && out.payoff) break;
   }
-  return false;
+  return out;
+}
+
+/** Does a card support any of the selected themes (as an enabler or a payoff)? */
+export function matchesThemes(facts: CardFacts, themeIds: string[]): boolean {
+  const k = synergyKinds(facts, themeIds);
+  return k.enabler || k.payoff;
 }
 
 /** A card that can close the game on its own, independent of the deck's theme. */
@@ -380,7 +396,7 @@ export function suggestThemes(commander: CatalogueCard): ThemeSuggestion[] {
   const out: ThemeSuggestion[] = [];
   for (const theme of THEMES) {
     let score = 0;
-    for (const re of theme.signatures) if (re.test(hay)) score++;
+    for (const re of [...theme.enablers, ...theme.payoffs]) if (re.test(hay)) score++;
     if (score > 0) out.push({ theme, score });
   }
   out.sort((a, b) => b.score - a.score || a.theme.name.localeCompare(b.theme.name));
@@ -680,6 +696,10 @@ export async function basicLandPrintings(): Promise<Record<string, CatalogueCard
 // across the curve instead of grabbing the cheapest cards first.
 const CURVE_WEIGHTS = [1, 6, 14, 16, 13, 9, 5, 3];
 
+// Share of the synergy slots reserved for payoffs (the reward half); the rest go
+// to enablers (the engine half). Enough that a themed deck always runs both.
+const PAYOFF_FRACTION = 0.4;
+
 const cmcBucket = (cmc: number): number => Math.min(7, Math.max(0, Math.floor(cmc)));
 
 /** Fisher–Yates shuffle (copy). Keeps auto-build from picking alphabetically. */
@@ -788,28 +808,61 @@ export function autoBuild(
   let nonBasicAdded = 0;
 
   // Non-land roles: fill each toward the shared curve quota rather than by
-  // cheapest-first, so the deck gets a proper spread of mana values.
-  // Fill win conditions before synergy so a card that is both a finisher and a
-  // theme card is claimed as the finisher first.
-  const SPELL_ROLES: RoleId[] = ['ramp', 'draw', 'removal', 'wipe', 'wincon', 'synergy'];
-  const spellTotal = SPELL_ROLES.reduce((n, r) => n + (deck.targets[r] ?? 0), 0);
+  // cheapest-first, so the deck gets a proper spread of mana values. Win
+  // conditions fill before synergy so a card that is both a finisher and a theme
+  // card is claimed as the finisher. Synergy is handled last, split below.
+  const SPELL_ROLES: RoleId[] = ['ramp', 'draw', 'removal', 'wipe', 'wincon'];
+  const spellTotal = [...SPELL_ROLES, 'synergy' as RoleId].reduce((n, r) => n + (deck.targets[r] ?? 0), 0);
   const quota = curveQuota(spellTotal);
   const bucketUsed = new Array(8).fill(0) as number[];
-  for (const role of SPELL_ROLES) {
-    const target = deck.targets[role] ?? 0;
-    if (target <= 0) continue;
-    const cands = owned
-      .filter(
-        (c) =>
-          !used.has(c.oracleId) &&
-          !isBasicLand(c) &&
-          withinIdentity(c.colorIdentity, deck.colorIdentity) &&
-          eligibleRoles(cardFacts(c), deck.themes).has(role),
-      );
-    for (const c of pickForCurve(cands, target, quota, bucketUsed)) {
+  const addSpells = (cards: CatalogueCard[], role: RoleId) => {
+    for (const c of cards) {
       entries.push({ catalogueId: c.id, role, quantity: 1 });
       used.add(c.oracleId);
       nonBasicAdded++;
+    }
+  };
+  for (const role of SPELL_ROLES) {
+    const target = deck.targets[role] ?? 0;
+    if (target <= 0) continue;
+    const cands = owned.filter(
+      (c) =>
+        !used.has(c.oracleId) &&
+        !isBasicLand(c) &&
+        withinIdentity(c.colorIdentity, deck.colorIdentity) &&
+        eligibleRoles(cardFacts(c), deck.themes).has(role),
+    );
+    addSpells(pickForCurve(cands, target, quota, bucketUsed), role);
+  }
+
+  // Synergy: balance the slots between payoffs and enablers so the deck gets the
+  // reward as well as the engine, not N of whichever sorted first. Payoffs (the
+  // scarcer half) go first, then enablers, then a backfill from whatever theme
+  // cards remain so the slot total is still met.
+  const synergyTarget = deck.targets.synergy ?? 0;
+  if (synergyTarget > 0) {
+    const pool = owned.filter(
+      (c) =>
+        !used.has(c.oracleId) &&
+        !isBasicLand(c) &&
+        withinIdentity(c.colorIdentity, deck.colorIdentity) &&
+        eligibleRoles(cardFacts(c), deck.themes).has('synergy'),
+    );
+    const payoffTarget = Math.min(synergyTarget, Math.round(synergyTarget * PAYOFF_FRACTION));
+    const enablerTarget = synergyTarget - payoffTarget;
+
+    const payoffCands = pool.filter((c) => synergyKinds(cardFacts(c), deck.themes).payoff);
+    const gotPayoffs = pickForCurve(payoffCands, payoffTarget, quota, bucketUsed);
+    addSpells(gotPayoffs, 'synergy');
+
+    const enablerCands = pool.filter((c) => !used.has(c.oracleId) && synergyKinds(cardFacts(c), deck.themes).enabler);
+    const gotEnablers = pickForCurve(enablerCands, enablerTarget, quota, bucketUsed);
+    addSpells(gotEnablers, 'synergy');
+
+    const filled = gotPayoffs.length + gotEnablers.length;
+    if (filled < synergyTarget) {
+      const rest = pool.filter((c) => !used.has(c.oracleId));
+      addSpells(pickForCurve(rest, synergyTarget - filled, quota, bucketUsed), 'synergy');
     }
   }
 
