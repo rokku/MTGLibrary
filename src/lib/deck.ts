@@ -21,6 +21,7 @@ export const ROLES: RoleDef[] = [
   { id: 'removal', label: 'Spot Removal', blurb: 'Answer a single threat — destroy, exile, counter.' },
   { id: 'wipe', label: 'Board Wipes', blurb: 'Reset the board when you fall behind.' },
   { id: 'synergy', label: 'Synergy', blurb: 'Cards that push your commander’s game plan.' },
+  { id: 'wincon', label: 'Win Conditions', blurb: 'Finishers that actually close the game.' },
 ];
 
 export const ROLE_LABEL: Record<RoleId, string> = Object.fromEntries(
@@ -46,25 +47,25 @@ export const STRATEGIES: Strategy[] = [
     id: 'balanced',
     name: 'Balanced',
     description: 'The classic Command Zone skeleton — a well-rounded starting point.',
-    targets: { land: 38, ramp: 10, draw: 10, removal: 12, wipe: 4, synergy: 25 },
+    targets: { land: 38, ramp: 10, draw: 10, removal: 12, wipe: 4, synergy: 22, wincon: 3 },
   },
   {
     id: 'aggro',
     name: 'Aggro',
     description: 'Lower curve, fewer answers, more threats and synergy to close fast.',
-    targets: { land: 34, ramp: 8, draw: 8, removal: 8, wipe: 2, synergy: 39 },
+    targets: { land: 34, ramp: 8, draw: 8, removal: 8, wipe: 2, synergy: 35, wincon: 4 },
   },
   {
     id: 'control',
     name: 'Control',
     description: 'More interaction and card draw to grind the table down.',
-    targets: { land: 37, ramp: 9, draw: 12, removal: 14, wipe: 6, synergy: 21 },
+    targets: { land: 37, ramp: 9, draw: 12, removal: 14, wipe: 6, synergy: 19, wincon: 2 },
   },
   {
     id: 'combo',
     name: 'Combo / Midrange',
     description: 'Extra draw and ramp to find and deploy your key pieces.',
-    targets: { land: 35, ramp: 11, draw: 13, removal: 10, wipe: 3, synergy: 27 },
+    targets: { land: 35, ramp: 11, draw: 13, removal: 10, wipe: 3, synergy: 23, wincon: 4 },
   },
 ];
 
@@ -284,6 +285,33 @@ const WIPE_RE = [
   /all (creatures|permanents|nonland permanents)/,
   /each player sacrifices/,
 ];
+/**
+ * Finishers — cards that actually close a game, independent of the deck's
+ * theme (an overrun wins a tokens deck and a kindred deck alike). Kept
+ * deliberately tight so the "win condition" slots hold real closers, not every
+ * incidental drain: alt-wins, scaling drain/burn, team pumps with evasion,
+ * extra turns/combats, and infect.
+ */
+const WINCON_RE = [
+  /you win the game/,
+  /(target player|that player|each opponent|an opponent|defending player|its controller|they) loses the game/,
+  /can't lose the game/,
+  /opponents? can't win the game/,
+  // Scaling / large drains that close a game — but not a 1-life aristocrats ping.
+  /each opponent loses ([5-9]|\d\d+|x)\b[^.]*life/, // Exsanguinate, Kokusho
+  /each opponent loses life equal to/, // Gray Merchant, devotion drains
+  /each opponent loses twice/, // Debt to the Deathless
+  /repeat the following process/, // Torment of Hailfire and other X-times drains
+  /deals damage to (each opponent|any target|each of them).*equal to/, // scaling burn finishers
+  /take an extra turn/,
+  /(additional|extra) combat phase/,
+  /creatures you control get \+x\/\+x/, // Craterhoof, Overwhelming Stampede
+  /creatures you control get \+\d+\/\+\d+ and gain (trample|flying|menace)/, // Overrun, End-Raze
+  /creatures you control (gain|have) (trample|flying|menace|infect).*\+x\/\+x/,
+  /\binfect\b/,
+  /poison counters?/,
+  /\btoxic\b/,
+];
 
 function anyMatch(text: string, res: RegExp[]): boolean {
   return res.some((re) => re.test(text));
@@ -320,10 +348,18 @@ export function matchesThemes(facts: CardFacts, themeIds: string[]): boolean {
   return false;
 }
 
+/** A card that can close the game on its own, independent of the deck's theme. */
+export function isWincon(facts: CardFacts): boolean {
+  const hay = `${facts.typeLine} ${facts.oracleText} ${facts.keywords.join(' ')}`;
+  return anyMatch(hay, WINCON_RE);
+}
+
 /** Every role a card is eligible for, given the deck's selected themes. */
 export function eligibleRoles(facts: CardFacts, themeIds: string[]): Set<RoleId> {
   const roles = stapleRoles(facts);
-  if (!roles.has('land') && matchesThemes(facts, themeIds)) roles.add('synergy');
+  if (roles.has('land')) return roles;
+  if (matchesThemes(facts, themeIds)) roles.add('synergy');
+  if (isWincon(facts)) roles.add('wincon');
   return roles;
 }
 
@@ -491,7 +527,7 @@ export function entryRole(deck: Deck, catalogueId: string): RoleId | null {
 // ── Derived counts for the builder UI ────────────────────────────────
 
 export function roleCounts(deck: Deck): Record<RoleId, number> {
-  const counts: Record<RoleId, number> = { land: 0, ramp: 0, draw: 0, removal: 0, wipe: 0, synergy: 0 };
+  const counts: Record<RoleId, number> = { land: 0, ramp: 0, draw: 0, removal: 0, wipe: 0, synergy: 0, wincon: 0 };
   for (const e of deck.entries) counts[e.role] += e.quantity;
   return counts;
 }
@@ -753,7 +789,9 @@ export function autoBuild(
 
   // Non-land roles: fill each toward the shared curve quota rather than by
   // cheapest-first, so the deck gets a proper spread of mana values.
-  const SPELL_ROLES: RoleId[] = ['ramp', 'draw', 'removal', 'wipe', 'synergy'];
+  // Fill win conditions before synergy so a card that is both a finisher and a
+  // theme card is claimed as the finisher first.
+  const SPELL_ROLES: RoleId[] = ['ramp', 'draw', 'removal', 'wipe', 'wincon', 'synergy'];
   const spellTotal = SPELL_ROLES.reduce((n, r) => n + (deck.targets[r] ?? 0), 0);
   const quota = curveQuota(spellTotal);
   const bucketUsed = new Array(8).fill(0) as number[];
@@ -870,7 +908,7 @@ export interface DeckRow {
 
 /** Deck entries resolved to cards and grouped by role, each sorted by curve. */
 export function deckRowsByRole(deck: Deck, byId: Map<string, CatalogueCard>): Record<RoleId, DeckRow[]> {
-  const out: Record<RoleId, DeckRow[]> = { land: [], ramp: [], draw: [], removal: [], wipe: [], synergy: [] };
+  const out: Record<RoleId, DeckRow[]> = { land: [], ramp: [], draw: [], removal: [], wipe: [], synergy: [], wincon: [] };
   for (const e of deck.entries) {
     const card = byId.get(e.catalogueId);
     if (card) out[e.role].push({ card, role: e.role, quantity: e.quantity });

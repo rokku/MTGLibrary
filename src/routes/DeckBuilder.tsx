@@ -49,7 +49,7 @@ import {
 } from '../lib/deck';
 
 const EMPTY_ROLES = (): Record<RoleId, CatalogueCard[]> => ({
-  land: [], ramp: [], draw: [], removal: [], wipe: [], synergy: [],
+  land: [], ramp: [], draw: [], removal: [], wipe: [], synergy: [], wincon: [],
 });
 
 // ── Small pieces ─────────────────────────────────────────────────────

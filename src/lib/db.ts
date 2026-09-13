@@ -100,7 +100,7 @@ export interface AppMeta {
 }
 
 /** The deck-building roles a card can fill, matched to common EDH ratios. */
-export type RoleId = 'land' | 'ramp' | 'draw' | 'removal' | 'wipe' | 'synergy';
+export type RoleId = 'land' | 'ramp' | 'draw' | 'removal' | 'wipe' | 'synergy' | 'wincon';
 
 /** A single card slotted into a deck under one role. */
 export interface DeckEntry {
