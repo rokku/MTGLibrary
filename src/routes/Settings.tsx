@@ -8,6 +8,7 @@ import { db } from '../lib/db';
 import { ACCENTS, saveSettings } from '../lib/settings';
 import { exportBackup, importBackup, deleteImport, type BackupFile } from '../lib/collection';
 import { fetchManifest, loadedCatalogueVersion } from '../lib/catalogue';
+import { APP_VERSION, BUILD_TIME, PROD_HOST, applyUpdate, checkForUpdate, isProdHost, subscribeNeedRefresh } from '../lib/pwa';
 
 function bytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -41,6 +42,21 @@ export function Settings() {
   const [catCount, setCatCount] = useState<number>(0);
   const [updateInfo, setUpdateInfo] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [appUpdateInfo, setAppUpdateInfo] = useState<string | null>(null);
+  const [appNeedsRefresh, setAppNeedsRefresh] = useState(false);
+  const showAppUpdater = !isProdHost();
+
+  useEffect(() => subscribeNeedRefresh(setAppNeedsRefresh), []);
+
+  async function checkAppUpdate() {
+    setAppUpdateInfo('Checking…');
+    try {
+      const waiting = await checkForUpdate();
+      setAppUpdateInfo(waiting ? 'A new version is ready — tap Update now.' : 'You’re on the latest version.');
+    } catch (e) {
+      setAppUpdateInfo(`Couldn’t check: ${(e as Error).message}`);
+    }
+  }
 
   async function refreshStorage() {
     if (navigator.storage?.estimate) {
@@ -186,6 +202,33 @@ export function Settings() {
           </button>
           {updateInfo && <p className="mt-2 text-sm text-neutral-400">{updateInfo}</p>}
         </SettingSection>
+
+        {showAppUpdater && (
+          <SettingSection title="App version">
+            <p className="text-sm text-neutral-300">
+              Version <span className="font-mono">{APP_VERSION}</span>
+            </p>
+            <p className="text-xs text-neutral-500">Built {new Date(BUILD_TIME).toLocaleString()}</p>
+            <p className="mt-2 text-xs text-neutral-500">
+              On {PROD_HOST} the app updates itself; here you can check and apply updates manually.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button onClick={checkAppUpdate} className="rounded-lg bg-surface-2 px-3 py-2 text-sm active:bg-surface-3">
+                Check for updates
+              </button>
+              {appNeedsRefresh && (
+                <button
+                  onClick={() => applyUpdate()}
+                  className="rounded-lg px-3 py-2 text-sm font-semibold text-black"
+                  style={{ backgroundColor: settings.accent }}
+                >
+                  Update now
+                </button>
+              )}
+            </div>
+            {appUpdateInfo && <p className="mt-2 text-sm text-neutral-400">{appUpdateInfo}</p>}
+          </SettingSection>
+        )}
 
         <SettingSection title="Imports">
           <Link

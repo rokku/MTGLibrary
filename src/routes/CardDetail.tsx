@@ -188,10 +188,19 @@ export function CardDetail() {
   const [editing, setEditing] = useState<CopyDraft | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
+  // Return to wherever the card was opened from (library, a binder set, a deck),
+  // not a fixed route. React Router stamps history entries with an `idx`; if this
+  // isn't the first entry we can safely step back, otherwise fall back home.
+  const goBack = () => {
+    const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+    if (idx > 0) navigate(-1);
+    else navigate('/');
+  };
+
   if (card === undefined) {
     return (
       <div className="flex h-full flex-col">
-        <Header title="Card" back="/" accent={settings.accent} />
+        <Header title="Card" back={goBack} accent={settings.accent} />
         <div className="flex flex-1 items-center justify-center text-neutral-500">Loading…</div>
       </div>
     );
@@ -199,7 +208,7 @@ export function CardDetail() {
   if (card === null) {
     return (
       <div className="flex h-full flex-col">
-        <Header title="Card" back="/" accent={settings.accent} />
+        <Header title="Card" back={goBack} accent={settings.accent} />
         <div className="flex flex-1 items-center justify-center text-neutral-500">Card not found.</div>
       </div>
     );
@@ -261,7 +270,7 @@ export function CardDetail() {
     <div className="flex h-full flex-col">
       <Header
         title={card.name}
-        back="/"
+        back={goBack}
         accent={settings.accent}
         right={
           totalQty > 0 ? (
