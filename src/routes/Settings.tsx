@@ -203,32 +203,36 @@ export function Settings() {
           {updateInfo && <p className="mt-2 text-sm text-neutral-400">{updateInfo}</p>}
         </SettingSection>
 
-        {showAppUpdater && (
-          <SettingSection title="App version">
-            <p className="text-sm text-neutral-300">
-              Version <span className="font-mono">{APP_VERSION}</span>
-            </p>
-            <p className="text-xs text-neutral-500">Built {new Date(BUILD_TIME).toLocaleString()}</p>
-            <p className="mt-2 text-xs text-neutral-500">
-              On {PROD_HOST} the app updates itself; here you can check and apply updates manually.
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <button onClick={checkAppUpdate} className="rounded-lg bg-surface-2 px-3 py-2 text-sm active:bg-surface-3">
-                Check for updates
-              </button>
-              {appNeedsRefresh && (
-                <button
-                  onClick={() => applyUpdate()}
-                  className="rounded-lg px-3 py-2 text-sm font-semibold text-black"
-                  style={{ backgroundColor: settings.accent }}
-                >
-                  Update now
+        <SettingSection title="App version">
+          <p className="text-sm text-neutral-300">
+            Version <span className="font-mono">{APP_VERSION}</span>
+          </p>
+          <p className="text-xs text-neutral-500">Built {new Date(BUILD_TIME).toLocaleString()}</p>
+          {showAppUpdater ? (
+            <>
+              <p className="mt-2 text-xs text-neutral-500">
+                On {PROD_HOST} the app updates itself; here you can check and apply updates manually.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button onClick={checkAppUpdate} className="rounded-lg bg-surface-2 px-3 py-2 text-sm active:bg-surface-3">
+                  Check for updates
                 </button>
-              )}
-            </div>
-            {appUpdateInfo && <p className="mt-2 text-sm text-neutral-400">{appUpdateInfo}</p>}
-          </SettingSection>
-        )}
+                {appNeedsRefresh && (
+                  <button
+                    onClick={() => applyUpdate()}
+                    className="rounded-lg px-3 py-2 text-sm font-semibold text-black"
+                    style={{ backgroundColor: settings.accent }}
+                  >
+                    Update now
+                  </button>
+                )}
+              </div>
+              {appUpdateInfo && <p className="mt-2 text-sm text-neutral-400">{appUpdateInfo}</p>}
+            </>
+          ) : (
+            <p className="mt-2 text-xs text-neutral-500">This host updates automatically in the background.</p>
+          )}
+        </SettingSection>
 
         <SettingSection title="Imports">
           <Link
