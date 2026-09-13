@@ -690,6 +690,37 @@ function pickForCurve(cands: CatalogueCard[], count: number, quota: number[], bu
   return chosen;
 }
 
+// ── Mana base ────────────────────────────────────────────────────────
+
+const WUBRG = ['W', 'U', 'B', 'R', 'G'] as const;
+
+/** Count coloured pips (W/U/B/R/G) in a mana cost, hybrid/Phyrexian included. */
+function addPips(cost: string | null, into: Record<string, number>): void {
+  if (!cost) return;
+  for (const sym of cost.match(/\{[^}]+\}/g) ?? []) {
+    for (const c of WUBRG) if (sym.includes(c)) into[c] = (into[c] ?? 0) + 1;
+  }
+}
+
+/**
+ * How a nonbasic land helps this deck: which of the deck's colours it makes,
+ * whether it fetches lands (flexible fixing), and a score used to keep the best
+ * fixers/utility lands when only so many nonbasic slots are available.
+ */
+function landInfo(card: CatalogueCard, deckColors: string[]): { colored: string[]; fetch: boolean; score: number } {
+  const text = (card.oracleText ?? '').toLowerCase();
+  const fetch = /search your library for/.test(text) && /\bland|plains|island|swamp|mountain|forest/.test(text);
+  const colored = deckColors.filter((c) => card.colorIdentity.includes(c));
+  const utility =
+    /(draw|scry|create|exile|destroy|proliferate|\+1\/\+1|deals? \d|can't be blocked|hexproof|indestructible|counter)/.test(text);
+  const score = colored.length * 3 + (fetch ? 3 : 0) + (utility ? 1 : 0);
+  return { colored, fetch, score };
+}
+
+// Fraction of the mana base to fill with (owned) nonbasic lands, indexed by
+// colour count. Mono decks lean on basics; the more colours, the more fixing.
+const NONBASIC_FRACTION = [0.3, 0.3, 0.5, 0.63, 0.71, 0.79];
+
 export interface AutoBuildResult {
   deck: Deck;
   nonBasicAdded: number;
@@ -744,9 +775,19 @@ export function autoBuild(
     }
   }
 
-  // Lands: owned non-basics first, then basics to fill the remainder.
+  // Mana base: keep only the best owned nonbasic (fixing/utility) lands, capped
+  // to a fraction of the base so basics still get in, then fill the rest with
+  // basics split across colours by the deck's actual pip demand.
   const landTarget = deck.targets.land ?? 0;
+  const deckColors = deck.colorIdentity ? deck.colorIdentity.split('') : [];
   let landCount = 0;
+
+  // Colour demand from everything we'll cast (commander + chosen spells).
+  const pips: Record<string, number> = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+  addPips(commander.manaCost, pips);
+  for (const e of entries) addPips(byId.get(e.catalogueId)?.manaCost ?? null, pips);
+
+  // Rank owned nonbasic lands by how well they fix/serve the deck, keep the best.
   const nonBasicLands = owned
     .filter(
       (c) =>
@@ -754,41 +795,54 @@ export function autoBuild(
         !isBasicLand(c) &&
         cardFacts(c).typeLine.includes('land') &&
         withinIdentity(c.colorIdentity, deck.colorIdentity),
-    );
-  for (const c of nonBasicLands.slice(0, landTarget)) {
-    entries.push({ catalogueId: c.id, role: 'land', quantity: 1 });
-    used.add(c.oracleId);
+    )
+    .map((c) => ({ c, ...landInfo(c, deckColors) }));
+  nonBasicLands.sort((a, b) => b.score - a.score); // stable: ties keep shuffle order
+
+  const frac = NONBASIC_FRACTION[Math.min(NONBASIC_FRACTION.length - 1, deckColors.length)] ?? 0.5;
+  const nonbasicTarget = Math.min(nonBasicLands.length, Math.round(landTarget * frac));
+
+  for (const nb of nonBasicLands.slice(0, nonbasicTarget)) {
+    entries.push({ catalogueId: nb.c.id, role: 'land', quantity: 1 });
+    used.add(nb.c.oracleId);
     landCount++;
     nonBasicAdded++;
   }
 
+  // Fill the remainder with basics, split to mirror the deck's colour demand
+  // (D'Hondt on pip counts, floored so a minority colour still gets a few). The
+  // nonbasics add fixing on top; we don't let them zero a colour's basics, which
+  // is why we don't subtract their sources here. Basics are unlimited in 'free'.
   let basicsAdded = 0;
   const remaining = landTarget - landCount;
   if (remaining > 0) {
-    const colors = deck.colorIdentity ? deck.colorIdentity.split('') : ['C'];
-    const buckets = colors
+    const cols = deckColors.length ? deckColors : ['C'];
+    const weightOf = (col: string): number => (col === 'C' ? 1 : Math.max(pips[col] ?? 0, 1));
+    const buckets = cols
       .map((col) => {
-        if (basicsMode === 'owned') {
-          const name = BASIC_FOR_COLOR[col];
-          const ownedBasic = owned.find((c) => c.name === name && isBasicLand(c));
-          return { printing: ownedBasic, cap: ownedBasic ? ownedQty.get(ownedBasic.id) ?? 0 : 0, count: 0 };
-        }
-        return { printing: basics[col], cap: Infinity, count: 0 };
+        const printing =
+          basicsMode === 'owned'
+            ? owned.find((c) => c.name === BASIC_FOR_COLOR[col] && isBasicLand(c))
+            : basics[col];
+        const cap = basicsMode === 'owned' ? (printing ? ownedQty.get(printing.id) ?? 0 : 0) : Infinity;
+        return { col, printing, cap, count: 0 };
       })
       .filter((b) => b.printing);
 
-    let added = 0;
-    let progressed = true;
-    while (added < remaining && progressed) {
-      progressed = false;
-      for (const b of buckets) {
-        if (added >= remaining) break;
-        if (b.count < b.cap) {
-          b.count++;
-          added++;
-          progressed = true;
+    for (let i = 0; i < remaining; i++) {
+      let best = -1;
+      let bestVal = -Infinity;
+      for (let j = 0; j < buckets.length; j++) {
+        const b = buckets[j]!;
+        if (b.count >= b.cap) continue;
+        const val = weightOf(b.col) / (b.count + 1);
+        if (val > bestVal) {
+          bestVal = val;
+          best = j;
         }
       }
+      if (best < 0) break;
+      buckets[best]!.count++;
     }
     for (const b of buckets) {
       if (b.count > 0 && b.printing) {
