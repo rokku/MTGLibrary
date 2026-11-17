@@ -6,7 +6,7 @@ import {
   type ImportRecord,
   type OwnedCard,
 } from './db';
-import type { MatchResult } from './csv';
+import { nameVariants, type MatchResult } from './csv';
 
 const uuid = (): string =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -120,6 +120,7 @@ export interface SyncSummary {
   updated: number;
   removed: number;
   unchanged: number;
+  kept: number; // owned stacks kept because their CSV row didn't match this time
 }
 
 /** Identity of a physical stack: a specific printing in a specific finish + condition. */
@@ -136,11 +137,15 @@ const stackKey = (catalogueId: string, finish: Finish, condition: Condition): st
  * Duplicate CSV rows for the same stack are summed. Images are fetched by the
  * wizard beforehand and are already skipped when cached, so only genuinely new
  * cards cost a download.
+ *
+ * `unmatchedNames` are CSV rows that couldn't be matched or were skipped. They
+ * are still in the CSV, so owned cards with those names are kept, not removed.
  */
 export async function syncImport(
   matched: MatchResult[],
   filename: string,
   imageStats: { fetched: number; failed: number },
+  unmatchedNames: string[] = [],
 ): Promise<{ record: ImportRecord; summary: SyncSummary }> {
   const importId = uuid();
   const importedAt = Date.now();
@@ -192,7 +197,7 @@ export async function syncImport(
   const toAdd: OwnedCard[] = [];
   const toPut: OwnedCard[] = [];
   const toDelete: string[] = [];
-  const summary: SyncSummary = { added: 0, updated: 0, removed: 0, unchanged: 0 };
+  const summary: SyncSummary = { added: 0, updated: 0, removed: 0, unchanged: 0, kept: 0 };
 
   // 3. Reconcile each desired stack.
   for (const [key, d] of desired) {
@@ -233,13 +238,17 @@ export async function syncImport(
   }
 
   // 4. Whatever CSV-managed rows remain are no longer in the CSV → remove.
-  //    Manually-added copies are deliberately kept.
+  //    Manually-added copies, and cards whose CSV row failed to match, are kept.
+  const stillListed = new Set(unmatchedNames.flatMap(nameVariants));
   for (const [, rows] of ownedByKey) {
     for (const r of rows) {
-      if (r.importId !== 'manual') {
-        toDelete.push(r.id);
-        summary.removed++;
+      if (r.importId === 'manual') continue;
+      if (nameVariants(r.name).some((k) => stillListed.has(k))) {
+        summary.kept++;
+        continue;
       }
+      toDelete.push(r.id);
+      summary.removed++;
     }
   }
 

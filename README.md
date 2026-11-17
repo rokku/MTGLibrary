@@ -47,8 +47,13 @@ included for testing.
   gzipped chunks (`a`–`z`, `0`) under `public/data/`. On first launch the app
   decompresses these in-browser (`DecompressionStream`) into IndexedDB.
 - **Import** (`src/lib/csv.ts`) parses the CSV, auto-detects columns, and matches
-  each row by Scryfall ID → name+set → fuzzy (Levenshtein). Matched cards' `small`
-  images are downloaded (6 concurrent, pausable) and stored as blobs.
+  each row locally by remembered pick → Scryfall ID → Cardmarket ID → name+set →
+  name → fuzzy (Levenshtein). Names are normalised (accents, quotes, Cardmarket
+  `(V.1)` suffixes, `Token`) and multi-face cards match on either face. Rows the
+  catalogue can't place are then looked up on the Scryfall API (id, batched
+  `/cards/collection`, fuzzy `/cards/named`) and the printings found are added to
+  the local catalogue. Manual picks are remembered for the next sync. Matched
+  cards' `small` images are downloaded (6 concurrent, pausable) and stored as blobs.
 - **Browse** (`src/routes/Library.tsx`) reads all owned rows via a Dexie live
   query and filters/sorts/groups in memory — a full scan of a few thousand rows
   stays well under the 200ms budget. Facet fields are denormalised onto
@@ -61,7 +66,7 @@ included for testing.
 
 Detected/normalised columns: `Quantity`, `Name` + `Expansion` (set name or code),
 `Cardmarket ID` / `Scryfall ID`, `Foil`/`Finish`, `Condition`, `Language`.
-Non-English rows are skipped. You can remap any column during import.
+Non-English rows are matched to the English printing. You can remap any column during import.
 
 ## Deploy
 

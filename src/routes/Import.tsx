@@ -8,9 +8,13 @@ import {
   detectColumns,
   matchRows,
   parseCsv,
+  rememberMatches,
+  resolveOnline,
   type ColumnMapping,
   type MatchResult,
   type NormalizedField,
+  type OnlineProgress,
+  type OnlineSummary,
   type ParsedCsv,
 } from '../lib/csv';
 import { downloadImages, type ImageProgress } from '../lib/image-cache';
@@ -63,6 +67,13 @@ export function Import() {
   const abortRef = useRef<AbortController | null>(null);
   const [existingCount, setExistingCount] = useState(0);
   const [syncSummary, setSyncSummary] = useState<SyncSummary | null>(null);
+  const [online, setOnline] = useState<
+    | { state: 'idle' }
+    | { state: 'running'; progress: OnlineProgress }
+    | { state: 'done'; summary: OnlineSummary }
+    | { state: 'error'; message: string }
+  >({ state: 'idle' });
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   // ── Step 1: upload ────────────────────────────────────────────────
   async function handleFile(file: File) {
@@ -96,10 +107,28 @@ export function Import() {
     setError(null);
     setStep('match');
     setMatchProgress(0);
+    setOnline({ state: 'idle' });
     const res = await matchRows(parsed.rows, mapping, {
       onProgress: (done, total) => setMatchProgress(Math.round((done / total) * 100)),
     });
     setResults(res);
+    if (navigator.onLine && needsOnline(res)) await runOnline(res);
+  }
+
+  // ── Step 3b: look up what the local catalogue missed on Scryfall ──
+  const needsOnline = (rs: MatchResult[]) => rs.some((r) => r.status === 'unmatched' || r.printingGuessed);
+
+  async function runOnline(base: MatchResult[]) {
+    setOnline({ state: 'running', progress: { done: 0, total: 0 } });
+    try {
+      const { results: next, summary } = await resolveOnline(base, {
+        onProgress: (progress) => setOnline({ state: 'running', progress }),
+      });
+      setResults(next);
+      setOnline({ state: 'done', summary });
+    } catch (e) {
+      setOnline({ state: 'error', message: (e as Error).message });
+    }
   }
 
   // ── Step 3 → 4: download images ───────────────────────────────────
@@ -136,8 +165,10 @@ export function Import() {
     const matched = results.filter((r) => r.status === 'matched' && r.catalogueId);
     setCommitting(true);
     try {
+      await rememberMatches(results);
       if (mode === 'sync') {
-        const { summary } = await syncImport(matched, filename, imgStats ?? { fetched: 0, failed: 0 });
+        const unmatchedNames = results.filter((r) => r.status !== 'matched').map((r) => r.rawName);
+        const { summary } = await syncImport(matched, filename, imgStats ?? { fetched: 0, failed: 0 }, unmatchedNames);
         setSyncSummary(summary);
       } else {
         setSyncSummary(null);
@@ -155,13 +186,16 @@ export function Import() {
   const unmatchedCount = results.filter((r) => r.status === 'unmatched').length;
   const skippedCount = results.filter((r) => r.status === 'skipped').length;
   const locatedCount = results.filter((r) => r.status === 'matched' && r.location).length;
+  const guessed = results.filter((r) => r.status === 'matched' && r.printingGuessed);
+  const nonEnglishCount = results.filter((r) => r.status === 'matched' && r.language).length;
+  const onlineRunning = online.state === 'running';
 
   function resolveRow(rowIndex: number, catalogueId: string | null) {
     setResults((prev) =>
       prev.map((r) =>
         r.rowIndex === rowIndex
           ? catalogueId
-            ? { ...r, status: 'matched', catalogueId }
+            ? { ...r, status: 'matched', catalogueId, method: 'manual', printingGuessed: false, reason: undefined }
             : { ...r, status: 'skipped', reason: 'Skipped by you' }
           : r,
       ),
@@ -319,7 +353,95 @@ export function Import() {
                   </div>
                 </div>
 
-                {unmatchedCount > 0 && (
+                {onlineRunning && (
+                  <div>
+                    <p className="mb-2 text-sm text-neutral-400">
+                      Looking up missing cards on Scryfall…
+                      {online.progress.total > 0 && ` ${online.progress.done}/${online.progress.total}`}
+                    </p>
+                    <div className="h-2 overflow-hidden rounded-full bg-surface-2">
+                      <div
+                        className="h-full bg-white transition-all"
+                        style={{
+                          width: `${online.progress.total ? (online.progress.done / online.progress.total) * 100 : 5}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+                {online.state === 'done' && (
+                  <p className="rounded-lg bg-surface-1 p-3 text-sm text-neutral-300">
+                    Scryfall found {online.summary.resolved} card{online.summary.resolved === 1 ? '' : 's'}
+                    {online.summary.refined > 0 && ` and corrected ${online.summary.refined} printing${online.summary.refined === 1 ? '' : 's'}`}
+                    {online.summary.suggested > 0 && `, with ${online.summary.suggested} suggestion${online.summary.suggested === 1 ? '' : 's'} to confirm below`}
+                    .
+                    {online.summary.failed > 0 && ` ${online.summary.failed} lookups failed.`}
+                  </p>
+                )}
+                {online.state === 'error' && (
+                  <div className="flex items-center justify-between gap-3 rounded-lg bg-surface-1 p-3 text-sm text-neutral-300">
+                    <span>{online.message}</span>
+                    <button
+                      onClick={() => runOnline(results)}
+                      className="shrink-0 rounded-lg bg-surface-2 px-3 py-1.5 active:bg-surface-3"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
+                {online.state === 'idle' && needsOnline(results) && (
+                  <button
+                    onClick={() => runOnline(results)}
+                    className="w-full rounded-lg bg-surface-2 py-3 text-sm active:bg-surface-3"
+                  >
+                    Look up missing cards on Scryfall
+                  </button>
+                )}
+
+                {guessed.length > 0 && !onlineRunning && (
+                  <section className="rounded-lg bg-surface-1 p-3">
+                    <button
+                      onClick={() => setReviewOpen((v) => !v)}
+                      className="flex w-full items-center justify-between text-left text-sm"
+                    >
+                      <span>
+                        <span className="font-semibold text-amber-400">{guessed.length}</span> matched by name only.
+                        The printing may differ from your CSV.
+                      </span>
+                      <span className="text-xs text-neutral-400 underline">{reviewOpen ? 'Hide' : 'Review'}</span>
+                    </button>
+                    {reviewOpen && (
+                      <ul className="mt-3 space-y-3">
+                        {guessed.map((r) => (
+                          <li key={r.rowIndex}>
+                            <p className="mb-1.5 text-sm">
+                              {r.rawName}
+                              <span className="ml-1.5 text-xs text-neutral-500">CSV set: {r.expansion}</span>
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {r.candidates.map((c) => (
+                                <button
+                                  key={c.id}
+                                  onClick={() => resolveRow(r.rowIndex, c.id)}
+                                  className={`rounded-lg px-2.5 py-1.5 text-left text-xs ${
+                                    c.id === r.catalogueId ? 'bg-white text-black' : 'bg-surface-2 active:bg-surface-3'
+                                  }`}
+                                >
+                                  {c.setName}
+                                  <span className="block text-[10px] uppercase opacity-60">
+                                    {c.setCode} · {c.collectorNumber}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+                )}
+
+                {unmatchedCount > 0 && !onlineRunning && (
                   <section>
                     <h2 className="mb-2 text-sm font-semibold text-neutral-300">Resolve unmatched</h2>
                     <ul className="space-y-3">
@@ -328,7 +450,12 @@ export function Import() {
                         .map((r) => (
                           <li key={r.rowIndex} className="rounded-lg bg-surface-1 p-3">
                             <div className="mb-2 flex items-center justify-between">
-                              <span className="font-medium">{r.rawName || '(no name)'}</span>
+                              <span className="min-w-0">
+                                <span className="font-medium">{r.rawName || '(no name)'}</span>
+                                {r.expansion && (
+                                  <span className="block text-xs text-neutral-500">{r.expansion}</span>
+                                )}
+                              </span>
                               <button
                                 onClick={() => resolveRow(r.rowIndex, null)}
                                 className="text-xs text-neutral-400 underline"
@@ -345,8 +472,8 @@ export function Import() {
                                     className="rounded-lg bg-surface-2 px-2.5 py-1.5 text-left text-xs active:bg-surface-3"
                                   >
                                     {c.name}
-                                    <span className="block text-[10px] uppercase text-neutral-500">
-                                      {c.setCode} · {c.collectorNumber}
+                                    <span className="block text-[10px] text-neutral-500">
+                                      {c.setName} · <span className="uppercase">{c.setCode}</span> {c.collectorNumber}
                                     </span>
                                   </button>
                                 ))}
@@ -362,7 +489,7 @@ export function Import() {
 
                 <button
                   onClick={runImages}
-                  disabled={matchedCount === 0}
+                  disabled={matchedCount === 0 || onlineRunning}
                   className="tap-target w-full rounded-lg py-3 font-semibold text-black disabled:opacity-40"
                   style={{ backgroundColor: settings.accent }}
                 >
@@ -406,6 +533,12 @@ export function Import() {
                 <span className="font-semibold text-green-400">{matchedCount}</span> cards ready to import.
               </p>
               {skippedCount > 0 && <p className="text-neutral-400">{skippedCount} skipped.</p>}
+              {unmatchedCount > 0 && (
+                <p className="text-neutral-400">{unmatchedCount} still unmatched and won’t be imported.</p>
+              )}
+              {nonEnglishCount > 0 && (
+                <p className="text-neutral-400">{nonEnglishCount} non-English cards are stored as their English printing.</p>
+              )}
               {imgStats && (
                 <p className="text-neutral-400">
                   {imgStats.fetched} images cached{imgStats.failed > 0 && `, ${imgStats.failed} failed`}.
@@ -490,6 +623,11 @@ export function Import() {
                     <span className="font-bold text-neutral-300">{syncSummary.unchanged}</span> unchanged
                   </div>
                 </div>
+                {syncSummary.kept > 0 && (
+                  <p className="text-sm text-neutral-400">
+                    Kept {syncSummary.kept} owned card{syncSummary.kept === 1 ? '' : 's'} whose CSV rows didn’t match.
+                  </p>
+                )}
                 <p className="text-sm text-neutral-500">
                   {imgStats?.fetched ?? 0} new images cached{skippedCount > 0 && `, ${skippedCount} skipped`}
                 </p>

@@ -16,6 +16,8 @@ export interface CatalogueCard {
   setCode: string;
   setName: string;
   collectorNumber: string;
+  cardmarketId: number | null; // Cardmarket product id, for CSV matching
+  faceNames: string[]; // per-face names of multi-face cards ("Delver of Secrets")
 
   // Faceting fields (denormalised for performance)
   colorIdentity: string; // 'WUBRG' string, e.g. 'BG' (canonical order)
@@ -149,6 +151,11 @@ export class CollectionDB extends Dexie {
     // stores are carried forward untouched.
     this.version(2).stores({
       decks: 'id, name, commanderId, updatedAt',
+    });
+    // v3: index Cardmarket ids so CSV rows can match on them. Older catalogue
+    // rows simply lack the field until the next catalogue load.
+    this.version(3).stores({
+      catalogue: 'id, name, oracleId, setCode, [setCode+collectorNumber], cardmarketId',
     });
   }
 }
