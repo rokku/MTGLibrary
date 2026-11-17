@@ -2,7 +2,6 @@ import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowUpTrayIcon, CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { Header } from '../components/Header';
-import { useSettings } from '../hooks/useSettings';
 import { db } from '../lib/db';
 import {
   detectColumns,
@@ -51,7 +50,6 @@ function StepBadge({ n, label, active, done }: { n: number; label: string; activ
 
 export function Import() {
   const navigate = useNavigate();
-  const settings = useSettings();
   const fileInput = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState<Step>('upload');
@@ -207,7 +205,7 @@ export function Import() {
 
   return (
     <div className="flex h-full flex-col">
-      <Header title="Import collection" back="/settings" accent={settings.accent} />
+      <Header title="Import collection" back="/settings" />
 
       <div className="flex items-center justify-between gap-1 overflow-x-auto border-b border-surface-2 px-3 py-2">
         {['Upload', 'Map', 'Match', 'Images', 'Commit'].map((label, i) => (
@@ -251,8 +249,7 @@ export function Import() {
             />
             <button
               onClick={() => fileInput.current?.click()}
-              className="tap-target rounded-lg px-5 py-3 font-semibold text-black"
-              style={{ backgroundColor: settings.accent }}
+              className="bg-accent tap-target rounded-lg px-5 py-3 font-semibold text-on-accent"
             >
               Choose CSV
             </button>
@@ -318,8 +315,7 @@ export function Import() {
 
             <button
               onClick={runMatch}
-              className="tap-target w-full rounded-lg py-3 font-semibold text-black"
-              style={{ backgroundColor: settings.accent }}
+              className="bg-accent tap-target w-full rounded-lg py-3 font-semibold text-on-accent"
             >
               Match to Scryfall
             </button>
@@ -490,8 +486,7 @@ export function Import() {
                 <button
                   onClick={runImages}
                   disabled={matchedCount === 0 || onlineRunning}
-                  className="tap-target w-full rounded-lg py-3 font-semibold text-black disabled:opacity-40"
-                  style={{ backgroundColor: settings.accent }}
+                  className="bg-accent tap-target w-full rounded-lg py-3 font-semibold text-on-accent disabled:opacity-40"
                 >
                   Download images ({matchedCount} cards)
                 </button>
@@ -569,8 +564,7 @@ export function Import() {
                 <button
                   onClick={() => commit('sync')}
                   disabled={committing}
-                  className="tap-target w-full rounded-lg py-3 font-semibold text-black disabled:opacity-40"
-                  style={{ backgroundColor: settings.accent }}
+                  className="bg-accent tap-target w-full rounded-lg py-3 font-semibold text-on-accent disabled:opacity-40"
                 >
                   Sync to match CSV
                 </button>
@@ -593,8 +587,7 @@ export function Import() {
               <button
                 onClick={() => commit('merge')}
                 disabled={committing}
-                className="tap-target w-full rounded-lg py-3 font-semibold text-black disabled:opacity-40"
-                style={{ backgroundColor: settings.accent }}
+                className="bg-accent tap-target w-full rounded-lg py-3 font-semibold text-on-accent disabled:opacity-40"
               >
                 Add to collection
               </button>
@@ -642,8 +635,7 @@ export function Import() {
             )}
             <button
               onClick={() => navigate('/')}
-              className="tap-target rounded-lg px-6 py-3 font-semibold text-black"
-              style={{ backgroundColor: settings.accent }}
+              className="bg-accent tap-target rounded-lg px-6 py-3 font-semibold text-on-accent"
             >
               View library
             </button>

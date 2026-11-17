@@ -14,6 +14,14 @@ export const ACCENTS: { name: string; value: string }[] = [
   { name: 'Rose', value: '#fb7185' },
 ];
 
+/** "#f59e0b" → "245 158 11", the triplet form the Tailwind colour tokens use. */
+export function hexToRgbTriplet(hex: string): string {
+  const h = hex.replace('#', '');
+  const full = h.length === 3 ? [...h].map((c) => c + c).join('') : h;
+  const n = parseInt(full, 16);
+  return `${(n >> 16) & 255} ${(n >> 8) & 255} ${n & 255}`;
+}
+
 export const DEFAULT_SETTINGS: AppSettings = {
   appName: 'Collection',
   accent: '#f59e0b',

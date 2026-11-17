@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fontsource-variable/figtree": "^5.1.1",
     "@headlessui/react": "^2.2.0",
     "@heroicons/react": "^2.2.0",
     "dexie": "^4.0.10",

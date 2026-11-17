@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { getSettings } from './lib/settings';
+import { getSettings, hexToRgbTriplet } from './lib/settings';
 import { ensureCatalogue, type LoadProgress } from './lib/catalogue';
 import { Library } from './routes/Library';
 import { Import } from './routes/Import';
@@ -14,6 +14,7 @@ import { Decks } from './routes/Decks';
 import { CommanderPicker } from './routes/CommanderPicker';
 import { DeckBuilder } from './routes/DeckBuilder';
 import { DeckList } from './routes/DeckList';
+import { TabBar, TAB_PATHS } from './components/TabBar';
 
 /** Slim banner shown while the Scryfall catalogue loads into IndexedDB. */
 function CatalogueBanner() {
@@ -68,12 +69,19 @@ function CatalogueBanner() {
   );
 }
 
+/** Shows the tab bar on the section screens; sub-screens use a back button. */
+function SectionTabs({ firstRunDone }: { firstRunDone: boolean }) {
+  const { pathname } = useLocation();
+  if (!firstRunDone || !TAB_PATHS.has(pathname)) return null;
+  return <TabBar />;
+}
+
 export default function App() {
   const settings = useLiveQuery(() => getSettings(), []);
 
-  // Apply the accent as a CSS variable for any consumers.
+  // Feed the chosen accent into the `accent` colour token (globals.css).
   useEffect(() => {
-    if (settings?.accent) document.documentElement.style.setProperty('--accent', settings.accent);
+    if (settings?.accent) document.documentElement.style.setProperty('--accent', hexToRgbTriplet(settings.accent));
   }, [settings?.accent]);
 
   if (settings === undefined) {
@@ -100,6 +108,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
+        <SectionTabs firstRunDone={settings.firstRunDone} />
       </div>
     </BrowserRouter>
   );

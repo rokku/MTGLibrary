@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { initPWA } from './lib/pwa';
+import '@fontsource-variable/figtree';
 import './globals.css';
 
 initPWA();

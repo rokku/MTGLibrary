@@ -6,22 +6,20 @@ import type { GroupedCard } from '../lib/query';
 interface CardGridProps {
   cards: GroupedCard[];
   onOpen: (catalogueId: string) => void;
-  accent: string;
 }
 
-export function CardGrid({ cards, onOpen, accent }: CardGridProps) {
+export function CardGrid({ cards, onOpen }: CardGridProps) {
   const { count, sentinelRef } = useReveal(cards.length);
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4">
+      <div className="grid grid-cols-3 gap-1.5 md:grid-cols-4">
         {cards.slice(0, count).map((c) => (
           <CardHoverCard key={c.catalogueId} catalogueId={c.catalogueId} className="block">
             <CardThumb
               catalogueId={c.catalogueId}
               name={c.name}
               quantity={c.totalQty}
-              accent={accent}
               onClick={() => onOpen(c.catalogueId)}
             />
           </CardHoverCard>

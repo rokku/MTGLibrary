@@ -4,7 +4,6 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { Header } from '../components/Header';
 import { CardHoverCard } from '../components/CardHoverCard';
-import { useSettings } from '../hooks/useSettings';
 import { useCardImage } from '../hooks/useCardImage';
 import {
   PER_PAGE_OPTIONS,
@@ -21,7 +20,7 @@ const COLS: Record<PerPage, string> = {
 };
 
 /** One pocket in a binder page: an owned card image, or an empty labelled slot. */
-function Pocket({ slot, accent, onOpen }: { slot: BinderSlot; accent: string; onOpen: () => void }) {
+function Pocket({ slot, onOpen }: { slot: BinderSlot; onOpen: () => void }) {
   const owned = slot.owned > 0;
   const { url } = useCardImage(owned ? slot.card.id : null, 'small');
 
@@ -49,8 +48,7 @@ function Pocket({ slot, accent, onOpen }: { slot: BinderSlot; accent: string; on
       )}
       {slot.owned > 1 && (
         <span
-          className="absolute right-1 top-1 min-w-[22px] rounded-full px-1.5 py-0.5 text-center text-xs font-bold text-black shadow"
-          style={{ backgroundColor: accent }}
+          className="bg-accent absolute right-1 top-1 min-w-[22px] rounded-full px-1.5 py-0.5 text-center text-xs font-bold text-on-accent shadow"
         >
           {slot.owned}
         </span>
@@ -63,18 +61,16 @@ function Pocket({ slot, accent, onOpen }: { slot: BinderSlot; accent: string; on
 function PageGrid({
   slots,
   perPage,
-  accent,
   onOpen,
 }: {
   slots: BinderSlot[];
   perPage: PerPage;
-  accent: string;
   onOpen: (id: string) => void;
 }) {
   return (
     <div className={`grid ${COLS[perPage]} gap-2`}>
       {slots.map((s) => (
-        <Pocket key={s.card.id} slot={s} accent={accent} onOpen={() => onOpen(s.card.id)} />
+        <Pocket key={s.card.id} slot={s} onOpen={() => onOpen(s.card.id)} />
       ))}
       {/* Pad the last page so pockets keep their size */}
       {Array.from({ length: perPage - slots.length }).map((_, i) => (
@@ -87,7 +83,6 @@ function PageGrid({
 export function BinderSet() {
   const { setCode } = useParams<{ setCode: string }>();
   const navigate = useNavigate();
-  const settings = useSettings();
 
   const [perPage, setPerPage] = useState<PerPage>(9);
   const [page, setPage] = useState(0);
@@ -124,7 +119,7 @@ export function BinderSet() {
   if (data === undefined) {
     return (
       <div className="flex h-full flex-col">
-        <Header title="Binder" back="/binder" accent={settings.accent} />
+        <Header title="Binder" back="/binder" />
         <div className="flex flex-1 items-center justify-center text-neutral-500">Loading…</div>
       </div>
     );
@@ -132,7 +127,7 @@ export function BinderSet() {
   if (data === null) {
     return (
       <div className="flex h-full flex-col">
-        <Header title="Binder" back="/binder" accent={settings.accent} />
+        <Header title="Binder" back="/binder" />
         <div className="flex flex-1 items-center justify-center text-neutral-500">Set not found in catalogue.</div>
       </div>
     );
@@ -146,7 +141,7 @@ export function BinderSet() {
 
   return (
     <div className="flex h-full flex-col">
-      <Header title={data.setName} back="/binder" accent={settings.accent} />
+      <Header title={data.setName} back="/binder" />
 
       {/* Per-page selector + set progress */}
       <div className="flex items-center justify-between gap-2 border-b border-surface-2 px-3 py-2">
@@ -180,7 +175,7 @@ export function BinderSet() {
           }}
         >
           {/* Base layer: the page being revealed */}
-          <PageGrid slots={pages[basePage] ?? []} perPage={perPage} accent={settings.accent} onOpen={open} />
+          <PageGrid slots={pages[basePage] ?? []} perPage={perPage} onOpen={open} />
 
           {/* Turning leaf */}
           {anim && (
@@ -196,7 +191,6 @@ export function BinderSet() {
                 <PageGrid
                   slots={pages[anim.dir === 'next' ? anim.from : anim.to] ?? []}
                   perPage={perPage}
-                  accent={settings.accent}
                   onOpen={() => {}}
                 />
               </div>

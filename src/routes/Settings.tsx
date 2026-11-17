@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ArrowUpTrayIcon, ArrowDownTrayIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { Header } from '../components/Header';
+import { useChoice } from '../components/useChoice';
 import { useSettings } from '../hooks/useSettings';
 import { db } from '../lib/db';
 import { ACCENTS, saveSettings } from '../lib/settings';
@@ -35,6 +36,7 @@ export function Settings() {
   const settings = useSettings();
   const imports = useLiveQuery(() => db.imports.orderBy('importedAt').reverse().toArray(), [], []);
   const backupInput = useRef<HTMLInputElement>(null);
+  const { ask, confirm, dialog } = useChoice();
 
   const [estimate, setEstimate] = useState<{ usage: number; quota: number } | null>(null);
   const [persisted, setPersisted] = useState<boolean | null>(null);
@@ -120,7 +122,7 @@ export function Settings() {
   }
 
   async function clearImages() {
-    if (confirm('Clear all cached images? They will re-download when needed.')) {
+    if (await confirm('Clear cached images?', 'They download again the next time each card is shown online.', 'Clear images')) {
       await db.images.clear();
       await refreshStorage();
       setStatus('Cleared cached images.');
@@ -128,7 +130,7 @@ export function Settings() {
   }
 
   async function removeImport(id: string) {
-    if (confirm('Delete this import and all its cards?')) {
+    if (await confirm('Delete this import?', 'This removes every card the import added to your collection.', 'Delete import')) {
       await deleteImport(id);
       setStatus('Import deleted.');
     }
@@ -138,7 +140,7 @@ export function Settings() {
 
   return (
     <div className="flex h-full flex-col">
-      <Header title="Settings" back="/" accent={settings.accent} />
+      <Header title="Settings" />
       <main className="flex-1 overflow-y-auto px-4">
         {status && (
           <div className="mt-3 rounded-lg bg-surface-1 p-3 text-sm text-neutral-300">{status}</div>
@@ -175,7 +177,7 @@ export function Settings() {
                 <span className="text-neutral-500">of {bytes(estimate.quota)}</span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-surface-2">
-                <div className="h-full" style={{ width: `${Math.min(usagePct, 100)}%`, backgroundColor: settings.accent }} />
+                <div className="h-full bg-accent" style={{ width: `${Math.min(usagePct, 100)}%` }} />
               </div>
             </>
           ) : (
@@ -220,8 +222,7 @@ export function Settings() {
                 {appNeedsRefresh && (
                   <button
                     onClick={() => applyUpdate()}
-                    className="rounded-lg px-3 py-2 text-sm font-semibold text-black"
-                    style={{ backgroundColor: settings.accent }}
+                    className="bg-accent rounded-lg px-3 py-2 text-sm font-semibold text-on-accent"
                   >
                     Update now
                   </button>
@@ -237,8 +238,7 @@ export function Settings() {
         <SettingSection title="Imports">
           <Link
             to="/import"
-            className="mb-3 flex items-center gap-2 rounded-lg px-4 py-3 font-semibold text-black"
-            style={{ backgroundColor: settings.accent }}
+            className="bg-accent mb-3 flex items-center gap-2 rounded-lg px-4 py-3 font-semibold text-on-accent"
           >
             <ArrowUpTrayIcon className="h-5 w-5" /> Import collection
           </Link>
@@ -273,14 +273,20 @@ export function Settings() {
               type="file"
               accept="application/json,.json"
               className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
+              onChange={async (e) => {
+                const input = e.target;
+                const f = input.files?.[0];
+                input.value = '';
                 if (!f) return;
-                const mode = confirm('Replace your current collection? OK = replace, Cancel = merge.')
-                  ? 'replace'
-                  : 'merge';
-                doImportBackup(f, mode);
-                e.target.value = '';
+                const mode = await ask({
+                  title: 'Restore backup',
+                  message: `How should ${f.name} be applied to your collection?`,
+                  choices: [
+                    { value: 'merge', label: 'Merge into my collection', tone: 'primary' },
+                    { value: 'replace', label: 'Replace my collection', tone: 'danger' },
+                  ],
+                });
+                if (mode) doImportBackup(f, mode);
               }}
             />
             <button
@@ -303,6 +309,7 @@ export function Settings() {
 
         <div className="py-6 text-center text-xs text-neutral-600">MTG Collection PWA · offline-first</div>
       </main>
+      {dialog}
     </div>
   );
 }

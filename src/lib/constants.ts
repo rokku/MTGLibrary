@@ -37,11 +37,11 @@ export const CONDITIONS: { value: Condition; label: string }[] = [
 export const CMC_MAX = 16;
 
 export const SORT_OPTIONS: { key: SortKey; label: string; defaultDir: 'asc' | 'desc' }[] = [
-  { key: 'name', label: 'Name (A–Z)', defaultDir: 'asc' },
-  { key: 'cmc', label: 'Mana Value', defaultDir: 'asc' },
+  { key: 'name', label: 'Name', defaultDir: 'asc' },
+  { key: 'cmc', label: 'Mana value', defaultDir: 'asc' },
   { key: 'rarity', label: 'Rarity', defaultDir: 'asc' },
-  { key: 'released', label: 'Set release', defaultDir: 'desc' },
-  { key: 'added', label: 'Recently added', defaultDir: 'desc' },
+  { key: 'released', label: 'Release', defaultDir: 'desc' },
+  { key: 'added', label: 'Added', defaultDir: 'desc' },
   { key: 'quantity', label: 'Quantity', defaultDir: 'desc' },
 ];
 

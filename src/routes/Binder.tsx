@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ChevronRightIcon } from '@heroicons/react/24/outline';
 import { Header } from '../components/Header';
-import { useSettings } from '../hooks/useSettings';
 import { binderSets, getShelfSort, setShelfSort, type ShelfSort } from '../lib/binder';
 
 const SORTS: { key: ShelfSort; label: string }[] = [
@@ -15,7 +14,6 @@ const SORTS: { key: ShelfSort; label: string }[] = [
 /** The binder shelf: pick a set to flip through, with per-set completion. */
 export function Binder() {
   const navigate = useNavigate();
-  const settings = useSettings();
   const [sort, setSort] = useState<ShelfSort>(getShelfSort);
   const sets = useLiveQuery(() => binderSets(sort), [sort]);
 
@@ -27,7 +25,7 @@ export function Binder() {
   if (sets === undefined) {
     return (
       <div className="flex h-full flex-col">
-        <Header title="Binder" back="/" accent={settings.accent} />
+        <Header title="Binder" />
         <div className="flex flex-1 items-center justify-center text-neutral-500">Loading…</div>
       </div>
     );
@@ -35,7 +33,7 @@ export function Binder() {
 
   return (
     <div className="flex h-full flex-col">
-      <Header title="Binder" back="/" accent={settings.accent} />
+      <Header title="Binder" />
 
       {sets.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 px-8 text-center">
@@ -86,8 +84,8 @@ export function Binder() {
                       </span>
                       <span className="block h-1.5 overflow-hidden rounded-full bg-surface-3">
                         <span
-                          className="block h-full rounded-full"
-                          style={{ width: `${s.pct}%`, backgroundColor: settings.accent }}
+                          className="block h-full rounded-full bg-accent"
+                          style={{ width: `${s.pct}%` }}
                         />
                       </span>
                     </span>

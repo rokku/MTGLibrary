@@ -14,10 +14,10 @@ import {
   XCircleIcon,
 } from '@heroicons/react/24/outline';
 import { Header } from '../components/Header';
+import { useChoice } from '../components/useChoice';
 import { ManaPips } from '../components/ManaPips';
 import { CatalogueThumb } from '../components/CatalogueThumb';
 import { CardHoverCard } from '../components/CardHoverCard';
-import { useSettings } from '../hooks/useSettings';
 import { db, type CatalogueCard, type Deck, type RoleId } from '../lib/db';
 import { allOwned } from '../lib/query';
 import {
@@ -66,7 +66,7 @@ const EMPTY_ROLES = (): Record<RoleId, CatalogueCard[]> => ({
 
 // ── Small pieces ─────────────────────────────────────────────────────
 
-function ThemePanel({ deck, commander, accent }: { deck: Deck; commander: CatalogueCard; accent: string }) {
+function ThemePanel({ deck, commander }: { deck: Deck; commander: CatalogueCard }) {
   const suggestions = useMemo(() => suggestThemes(commander), [commander]);
   const suggestedIds = new Set(suggestions.map((s) => s.theme.id));
   const others = THEMES.filter((t) => !suggestedIds.has(t.id));
@@ -76,9 +76,8 @@ function ThemePanel({ deck, commander, accent }: { deck: Deck; commander: Catalo
     return (
       <button
         onClick={() => saveDeck(toggleTheme(deck, id))}
-        className="rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
-        style={on ? { backgroundColor: accent, color: '#000' } : undefined}
-        {...(on ? {} : { 'data-off': true })}
+        className="rounded-full px-3 py-1.5 text-xs font-medium transition-colors data-[on]:bg-accent data-[on]:text-on-accent"
+        {...(on ? { 'data-on': true } : { 'data-off': true })}
       >
         <span className={on ? '' : 'text-neutral-300'}>{name}</span>
       </button>
@@ -88,7 +87,7 @@ function ThemePanel({ deck, commander, accent }: { deck: Deck; commander: Catalo
   return (
     <section className="border-b border-surface-2 px-3 py-3">
       <div className="mb-2 flex items-center gap-2">
-        <SparklesIcon className="h-4 w-4" style={{ color: accent }} />
+        <SparklesIcon className="text-accent h-4 w-4" />
         <h2 className="text-sm font-semibold">Synergy</h2>
       </div>
       {suggestions.length > 0 ? (
@@ -121,7 +120,7 @@ function ThemePanel({ deck, commander, accent }: { deck: Deck; commander: Catalo
   );
 }
 
-function StrategyPanel({ deck, accent }: { deck: Deck; accent: string }) {
+function StrategyPanel({ deck }: { deck: Deck }) {
   const targetSum = ROLES.reduce((n, r) => n + (deck.targets[r.id] ?? 0), 0);
 
   return (
@@ -134,8 +133,7 @@ function StrategyPanel({ deck, accent }: { deck: Deck; accent: string }) {
             <button
               key={s.id}
               onClick={() => saveDeck(setStrategy(deck, s.id))}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium ${on ? 'text-black' : 'bg-surface-2 text-neutral-300'}`}
-              style={on ? { backgroundColor: accent } : undefined}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium ${on ? 'bg-accent text-on-accent' : 'bg-surface-2 text-neutral-300'}`}
             >
               {s.name}
             </button>
@@ -172,7 +170,6 @@ function CandidateRow({
   card,
   role,
   ownedQty,
-  accent,
   tag,
   onOpen,
 }: {
@@ -180,7 +177,6 @@ function CandidateRow({
   card: CatalogueCard;
   role: RoleId;
   ownedQty: number;
-  accent: string;
   tag?: string | null;
   onOpen: () => void;
 }) {
@@ -223,8 +219,7 @@ function CandidateRow({
           <button
             onClick={() => saveDeck(changeEntryQuantity(deck, card.id, role, +1))}
             disabled={entry!.quantity >= maxCopies}
-            className="tap-target grid h-8 w-8 place-items-center rounded-md text-black disabled:opacity-40"
-            style={{ backgroundColor: accent }}
+            className="bg-accent tap-target grid h-8 w-8 place-items-center rounded-md text-on-accent disabled:opacity-40"
             aria-label="Add one"
           >
             <PlusIcon className="h-4 w-4" />
@@ -247,7 +242,6 @@ function RoleSection({
   role,
   candidates,
   ownedQty,
-  accent,
   tribes,
   onOpenCard,
 }: {
@@ -255,7 +249,6 @@ function RoleSection({
   role: (typeof ROLES)[number];
   candidates: CatalogueCard[];
   ownedQty: Map<string, number>;
-  accent: string;
   tribes: string[];
   onOpenCard: (id: string) => void;
 }) {
@@ -290,8 +283,8 @@ function RoleSection({
           </span>
           <span className="block h-1.5 overflow-hidden rounded-full bg-surface-3">
             <span
-              className="block h-full rounded-full"
-              style={{ width: `${pct}%`, backgroundColor: met ? '#34d399' : accent }}
+              className={`block h-full rounded-full ${met ? 'bg-emerald-400' : 'bg-accent'}`}
+              style={{ width: `${pct}%` }}
             />
           </span>
         </span>
@@ -312,7 +305,6 @@ function RoleSection({
                   card={c}
                   role={role.id}
                   ownedQty={ownedQty.get(c.id) ?? 1}
-                  accent={accent}
                   tag={role.id === 'synergy' ? synergyTag(c, deck.themes, tribes) : null}
                   onOpen={() => onOpenCard(c.id)}
                 />
@@ -325,7 +317,7 @@ function RoleSection({
   );
 }
 
-function LegalityPanel({ legality, accent }: { legality: Legality; accent: string }) {
+function LegalityPanel({ legality }: { legality: Legality }) {
   const [open, setOpen] = useState(false);
   const errors = legality.issues.filter((i) => i.level === 'error');
   const warnings = legality.issues.filter((i) => i.level === 'warning');
@@ -344,7 +336,7 @@ function LegalityPanel({ legality, accent }: { legality: Legality; accent: strin
           </span>
           <span className="ml-2 text-xs text-neutral-500">Commander legality</span>
         </span>
-        <span className="shrink-0 text-xs font-semibold tabular-nums" style={{ color: legality.total === 100 ? accent : undefined }}>
+        <span className="shrink-0 text-xs font-semibold tabular-nums data-[done]:text-accent" data-done={legality.total === 100 || undefined}>
           {legality.total} / 100
         </span>
         {open ? <ChevronDownIcon className="h-4 w-4 text-neutral-500" /> : <ChevronRightIcon className="h-4 w-4 text-neutral-500" />}
@@ -381,7 +373,6 @@ function LegalityPanel({ legality, accent }: { legality: Legality; accent: strin
 export function DeckBuilder() {
   const { deckId } = useParams<{ deckId: string }>();
   const navigate = useNavigate();
-  const settings = useSettings();
 
   // `undefined` = still loading; `null` = no such deck. (A live query can't tell
   // the two apart on its own since both resolve to `undefined`.)
@@ -487,11 +478,14 @@ export function DeckBuilder() {
 
   const [building, setBuilding] = useState(false);
   const [buildResult, setBuildResult] = useState<AutoBuildResult | null>(null);
+  const { confirm, dialog } = useChoice();
 
   async function handleBuild() {
     if (!deck || !commander || building) return;
-    const yes = window.confirm(
-      'Build for me replaces the current deck contents with picks from your collection (basics added to fill the mana base). Continue?',
+    const yes = await confirm(
+      'Build this deck for you?',
+      'This replaces the current deck with picks from your collection, adding basic lands to fill the mana base.',
+      'Replace deck',
     );
     if (!yes) return;
     setBuilding(true);
@@ -519,7 +513,7 @@ export function DeckBuilder() {
   if (deck === undefined || owned === undefined) {
     return (
       <div className="flex h-full flex-col">
-        <Header title="Deck" back="/decks" accent={settings.accent} />
+        <Header title="Deck" back="/decks" />
         <div className="flex flex-1 items-center justify-center text-neutral-500">Loading…</div>
       </div>
     );
@@ -527,7 +521,7 @@ export function DeckBuilder() {
   if (deck === null) {
     return (
       <div className="flex h-full flex-col">
-        <Header title="Deck" back="/decks" accent={settings.accent} />
+        <Header title="Deck" back="/decks" />
         <div className="flex flex-1 items-center justify-center text-neutral-500">Deck not found.</div>
       </div>
     );
@@ -541,7 +535,6 @@ export function DeckBuilder() {
       <Header
         title={deck.name}
         back="/decks"
-        accent={settings.accent}
         right={
           <Link
             to={`/decks/${deck.id}/list`}
@@ -576,7 +569,7 @@ export function DeckBuilder() {
               </span>
             </div>
             <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-surface-3">
-              <span className="block h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: settings.accent }} />
+              <span className="block h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
             </span>
           </div>
         </section>
@@ -586,8 +579,7 @@ export function DeckBuilder() {
           <button
             onClick={handleBuild}
             disabled={building}
-            className="tap-target flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold text-black disabled:opacity-60"
-            style={{ backgroundColor: settings.accent }}
+            className="bg-accent tap-target flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold text-on-accent disabled:opacity-60"
           >
             <BoltIcon className="h-5 w-5" />
             {building ? 'Building…' : 'Build for me'}
@@ -618,10 +610,10 @@ export function DeckBuilder() {
           )}
         </section>
 
-        {legality && <LegalityPanel legality={legality} accent={settings.accent} />}
+        {legality && <LegalityPanel legality={legality} />}
 
-        {commander && <ThemePanel deck={deck} commander={commander} accent={settings.accent} />}
-        <StrategyPanel deck={deck} accent={settings.accent} />
+        {commander && <ThemePanel deck={deck} commander={commander} />}
+        <StrategyPanel deck={deck} />
 
         {ROLES.map((role) => (
           <RoleSection
@@ -630,13 +622,13 @@ export function DeckBuilder() {
             role={role}
             candidates={candidates[role.id]}
             ownedQty={ownedQty}
-            accent={settings.accent}
             tribes={tribes}
             onOpenCard={(id) => navigate(`/card/${id}`)}
           />
         ))}
         <div className="h-8" />
       </main>
+      {dialog}
     </div>
   );
 }

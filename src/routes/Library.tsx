@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Cog6ToothIcon, ArrowUpTrayIcon, RectangleStackIcon, Squares2X2Icon } from '@heroicons/react/24/outline';
+import { ArrowUpTrayIcon } from '@heroicons/react/24/outline';
 import { Header } from '../components/Header';
 import { FilterBar, type ViewMode } from '../components/FilterBar';
 import { FilterMenu } from '../components/FilterMenu';
@@ -21,9 +21,9 @@ import {
   type SortSpec,
 } from '../lib/query';
 
+// Colours have their own chips, so the filter badge counts the sheet-only facets.
 function countActive(f: ActiveFilters): number {
   return (
-    f.colors.length +
     f.rarities.length +
     f.sets.length +
     f.types.length +
@@ -86,31 +86,16 @@ export function Library() {
     );
   }
 
-  const rightActions = (
-    <>
-      <Link to="/decks" className="tap-target flex items-center justify-center rounded-lg active:bg-surface-2" aria-label="Commander decks">
-        <Squares2X2Icon className="h-6 w-6" />
-      </Link>
-      <Link to="/binder" className="tap-target flex items-center justify-center rounded-lg active:bg-surface-2" aria-label="Binder browser">
-        <RectangleStackIcon className="h-6 w-6" />
-      </Link>
-      <Link to="/settings" className="tap-target flex items-center justify-center rounded-lg active:bg-surface-2" aria-label="Settings">
-        <Cog6ToothIcon className="h-6 w-6" />
-      </Link>
-    </>
-  );
-
   if (owned.length === 0) {
     return (
       <div className="flex h-full flex-col">
-        <Header title={settings.appName} accent={settings.accent} right={rightActions} />
+        <Header title={settings.appName} />
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-8 text-center">
           <p className="text-lg font-medium">Your collection is empty</p>
           <p className="text-sm text-neutral-400">Import a TCGPowertools CSV to get started.</p>
           <Link
             to="/import"
-            className="tap-target flex items-center gap-2 rounded-lg px-5 py-3 font-semibold text-black"
-            style={{ backgroundColor: settings.accent }}
+            className="bg-accent tap-target flex items-center gap-2 rounded-lg px-5 py-3 font-semibold text-on-accent"
           >
             <ArrowUpTrayIcon className="h-5 w-5" />
             Import collection
@@ -122,11 +107,17 @@ export function Library() {
 
   return (
     <div className="flex h-full flex-col">
-      <Header title={settings.appName} accent={settings.accent} right={rightActions} />
       <FilterBar
+        title={settings.appName}
         search={searchInput}
         onSearch={setSearchInput}
         filters={filters}
+        onToggleColor={(c) =>
+          setFilters((f) => ({
+            ...f,
+            colors: f.colors.includes(c) ? f.colors.filter((x) => x !== c) : [...f.colors, c],
+          }))
+        }
         activeCount={countActive(filters)}
         onOpenFilters={() => setMenuOpen(true)}
         sort={sort}
@@ -137,7 +128,7 @@ export function Library() {
         resultValue={totalValue}
       />
 
-      <main className="flex-1 overflow-y-auto p-3">
+      <main className="flex-1 overflow-y-auto px-3 pb-3 pt-2">
         {results.length === 0 ? (
           <div className="flex flex-col items-center gap-3 pt-16 text-center">
             <p className="text-neutral-400">No cards match these filters.</p>
@@ -154,7 +145,7 @@ export function Library() {
             )}
           </div>
         ) : view === 'grid' ? (
-          <CardGrid cards={results} accent={settings.accent} onOpen={(id) => navigate(`/card/${id}`)} />
+          <CardGrid cards={results} onOpen={(id) => navigate(`/card/${id}`)} />
         ) : (
           <CardList cards={results} onOpen={(id) => navigate(`/card/${id}`)} />
         )}

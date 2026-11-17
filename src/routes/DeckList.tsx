@@ -14,7 +14,6 @@ import { Header } from '../components/Header';
 import { ManaPips } from '../components/ManaPips';
 import { CatalogueThumb } from '../components/CatalogueThumb';
 import { CardHoverCard } from '../components/CardHoverCard';
-import { useSettings } from '../hooks/useSettings';
 import { db, type CatalogueCard, type RoleId } from '../lib/db';
 import {
   ROLES,
@@ -36,7 +35,7 @@ type DeckView = 'grid' | 'list';
 let savedDeckView: DeckView = 'grid';
 
 /** Single-series magnitude chart: nonland card counts by mana value. */
-function ManaCurve({ buckets, accent }: { buckets: number[]; accent: string }) {
+function ManaCurve({ buckets }: { buckets: number[] }) {
   const max = Math.max(1, ...buckets);
   const total = buckets.reduce((n, b) => n + b, 0);
 
@@ -54,7 +53,7 @@ function ManaCurve({ buckets, accent }: { buckets: number[]; accent: string }) {
               className="w-full rounded-t"
               style={{
                 height: count > 0 ? Math.max(4, (count / max) * 96) : 0,
-                backgroundColor: count > 0 ? accent : 'transparent',
+                backgroundColor: count > 0 ? 'rgb(var(--accent))' : 'transparent',
               }}
             />
           </div>
@@ -91,7 +90,7 @@ function CardRow({ row, onOpen }: { row: DeckRow; onOpen: () => void }) {
   );
 }
 
-function CardCell({ row, accent, onOpen }: { row: DeckRow; accent: string; onOpen: () => void }) {
+function CardCell({ row, onOpen }: { row: DeckRow; onOpen: () => void }) {
   const { card, quantity } = row;
   return (
     <CardHoverCard catalogueId={card.id} className="block">
@@ -101,8 +100,7 @@ function CardCell({ row, accent, onOpen }: { row: DeckRow; accent: string; onOpe
         badge={
           quantity > 1 ? (
             <span
-              className="absolute right-1 top-1 min-w-[22px] rounded-full px-1.5 py-0.5 text-center text-xs font-bold text-black shadow"
-              style={{ backgroundColor: accent }}
+              className="bg-accent absolute right-1 top-1 min-w-[22px] rounded-full px-1.5 py-0.5 text-center text-xs font-bold text-on-accent shadow"
             >
               {quantity}
             </span>
@@ -118,13 +116,11 @@ function ExportModal({
   text,
   onClose,
   deckName,
-  accent,
 }: {
   open: boolean;
   text: string;
   onClose: () => void;
   deckName: string;
-  accent: string;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -170,8 +166,7 @@ function ExportModal({
           <div className="mt-3 flex gap-2">
             <button
               onClick={copy}
-              className="tap-target flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold text-black"
-              style={{ backgroundColor: accent }}
+              className="bg-accent tap-target flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold text-on-accent"
             >
               {copied ? <CheckIcon className="h-5 w-5" /> : <ClipboardDocumentIcon className="h-5 w-5" />}
               {copied ? 'Copied' : 'Copy'}
@@ -197,7 +192,6 @@ function ExportModal({
 export function DeckList() {
   const { deckId } = useParams<{ deckId: string }>();
   const navigate = useNavigate();
-  const settings = useSettings();
   const [exportOpen, setExportOpen] = useState(false);
   const [view, setView] = useState<DeckView>(savedDeckView);
   function changeView(v: DeckView) {
@@ -232,7 +226,7 @@ export function DeckList() {
   if (deck === undefined || byId === undefined) {
     return (
       <div className="flex h-full flex-col">
-        <Header title="Decklist" back="/decks" accent={settings.accent} />
+        <Header title="Decklist" back="/decks" />
         <div className="flex flex-1 items-center justify-center text-neutral-500">Loading…</div>
       </div>
     );
@@ -240,7 +234,7 @@ export function DeckList() {
   if (deck === null) {
     return (
       <div className="flex h-full flex-col">
-        <Header title="Decklist" back="/decks" accent={settings.accent} />
+        <Header title="Decklist" back="/decks" />
         <div className="flex flex-1 items-center justify-center text-neutral-500">Deck not found.</div>
       </div>
     );
@@ -251,8 +245,7 @@ export function DeckList() {
   const exportButton = (
     <button
       onClick={() => setExportOpen(true)}
-      className="tap-target flex items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-black"
-      style={{ backgroundColor: settings.accent }}
+      className="bg-accent tap-target flex items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-on-accent"
     >
       <ArrowUpTrayIcon className="h-5 w-5" />
       Export
@@ -261,7 +254,7 @@ export function DeckList() {
 
   return (
     <div className="flex h-full flex-col">
-      <Header title={deck.name} back={`/decks/${deck.id}`} accent={settings.accent} right={exportButton} />
+      <Header title={deck.name} back={`/decks/${deck.id}`} right={exportButton} />
 
       <main className="flex-1 overflow-y-auto p-3">
         <div className="mb-3 flex items-center justify-between">
@@ -273,8 +266,7 @@ export function DeckList() {
             <div className="flex overflow-hidden rounded-lg bg-surface-1">
               <button
                 onClick={() => changeView('grid')}
-                className={`tap-target grid place-items-center px-2.5 ${view === 'grid' ? 'text-black' : 'text-neutral-400'}`}
-                style={view === 'grid' ? { backgroundColor: settings.accent } : undefined}
+                className={`tap-target grid place-items-center px-2.5 ${view === 'grid' ? 'bg-accent text-on-accent' : 'text-neutral-400'}`}
                 aria-label="Grid view"
                 aria-pressed={view === 'grid'}
               >
@@ -282,8 +274,7 @@ export function DeckList() {
               </button>
               <button
                 onClick={() => changeView('list')}
-                className={`tap-target grid place-items-center px-2.5 ${view === 'list' ? 'text-black' : 'text-neutral-400'}`}
-                style={view === 'list' ? { backgroundColor: settings.accent } : undefined}
+                className={`tap-target grid place-items-center px-2.5 ${view === 'list' ? 'bg-accent text-on-accent' : 'text-neutral-400'}`}
                 aria-label="List view"
                 aria-pressed={view === 'list'}
               >
@@ -311,7 +302,7 @@ export function DeckList() {
 
         {curve && (
           <div className="mb-4">
-            <ManaCurve buckets={curve} accent={settings.accent} />
+            <ManaCurve buckets={curve} />
           </div>
         )}
 
@@ -333,7 +324,6 @@ export function DeckList() {
                       <CardCell
                         key={`${r.card.id}-${r.role as RoleId}`}
                         row={r}
-                        accent={settings.accent}
                         onOpen={() => navigate(`/card/${r.card.id}`)}
                       />
                     ))}
@@ -357,7 +347,6 @@ export function DeckList() {
         text={exportText}
         onClose={() => setExportOpen(false)}
         deckName={deck.name}
-        accent={settings.accent}
       />
     </div>
   );

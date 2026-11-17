@@ -3,8 +3,27 @@
 @tailwind utilities;
 
 @layer base {
+  /* Cave theme. Values are "R G B" triplets consumed by tailwind.config.js.
+     --accent / --on-accent are overwritten at runtime from Settings. */
   :root {
     color-scheme: dark;
+    --surface-0: 14 13 18;
+    --surface-1: 23 22 29;
+    --surface-2: 33 31 41;
+    --surface-3: 46 43 56;
+    --neutral-50: 247 246 250;
+    --neutral-100: 238 237 243;
+    --neutral-200: 221 219 229;
+    --neutral-300: 195 192 207;
+    --neutral-400: 154 149 170;
+    --neutral-500: 119 114 138;
+    --neutral-600: 90 86 107;
+    --neutral-700: 68 64 82;
+    --neutral-800: 46 43 56;
+    --neutral-900: 33 31 41;
+    --neutral-950: 23 22 29;
+    --accent: 242 181 68;
+    --on-accent: 26 18 6;
   }
 
   html,

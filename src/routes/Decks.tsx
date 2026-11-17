@@ -2,13 +2,13 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Link, useNavigate } from 'react-router-dom';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { Header } from '../components/Header';
+import { useChoice } from '../components/useChoice';
 import { ManaPips } from '../components/ManaPips';
 import { CatalogueThumb } from '../components/CatalogueThumb';
-import { useSettings } from '../hooks/useSettings';
 import { db, type CatalogueCard, type Deck } from '../lib/db';
 import { deckSize, deleteDeck, listDecks, strategyById, DECK_SIZE } from '../lib/deck';
 
-function DeckRow({ deck, accent }: { deck: Deck; accent: string }) {
+function DeckRow({ deck }: { deck: Deck }) {
   const navigate = useNavigate();
   const commander = useLiveQuery<CatalogueCard | undefined>(
     () => db.catalogue.get(deck.commanderId),
@@ -16,6 +16,7 @@ function DeckRow({ deck, accent }: { deck: Deck; accent: string }) {
   );
   const size = deckSize(deck.entries);
   const pct = Math.min(100, Math.round((size / DECK_SIZE) * 100));
+  const { confirm, dialog } = useChoice();
 
   return (
     <li>
@@ -41,15 +42,17 @@ function DeckRow({ deck, accent }: { deck: Deck; accent: string }) {
             </span>
             <span className="block h-1.5 overflow-hidden rounded-full bg-surface-3">
               <span
-                className="block h-full rounded-full"
-                style={{ width: `${pct}%`, backgroundColor: accent }}
+                className="block h-full rounded-full bg-accent"
+                style={{ width: `${pct}%` }}
               />
             </span>
           </span>
         </button>
         <button
           onClick={async () => {
-            if (confirm(`Delete deck “${deck.name}”?`)) await deleteDeck(deck.id);
+            if (await confirm(`Delete “${deck.name}”?`, 'The deck is removed. The cards stay in your collection.', 'Delete deck')) {
+              await deleteDeck(deck.id);
+            }
           }}
           className="tap-target flex items-center justify-center rounded-lg text-neutral-500 active:bg-surface-2"
           aria-label={`Delete ${deck.name}`}
@@ -57,20 +60,19 @@ function DeckRow({ deck, accent }: { deck: Deck; accent: string }) {
           <TrashIcon className="h-5 w-5" />
         </button>
       </div>
+      {dialog}
     </li>
   );
 }
 
 /** The deck shelf: your saved Commander decks, plus a way to start a new one. */
 export function Decks() {
-  const settings = useSettings();
   const decks = useLiveQuery(() => listDecks(), []);
 
   const rightActions = (
     <Link
       to="/decks/new"
-      className="tap-target flex items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-black"
-      style={{ backgroundColor: settings.accent }}
+      className="bg-accent tap-target flex items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-on-accent"
     >
       <PlusIcon className="h-5 w-5" />
       New
@@ -79,7 +81,7 @@ export function Decks() {
 
   return (
     <div className="flex h-full flex-col">
-      <Header title="Decks" back="/" accent={settings.accent} right={rightActions} />
+      <Header title="Decks" right={rightActions} />
 
       {decks === undefined ? (
         <div className="flex flex-1 items-center justify-center text-neutral-500">Loading…</div>
@@ -91,8 +93,7 @@ export function Decks() {
           </p>
           <Link
             to="/decks/new"
-            className="tap-target flex items-center gap-2 rounded-lg px-5 py-3 font-semibold text-black"
-            style={{ backgroundColor: settings.accent }}
+            className="bg-accent tap-target flex items-center gap-2 rounded-lg px-5 py-3 font-semibold text-on-accent"
           >
             <PlusIcon className="h-5 w-5" />
             New Commander deck
@@ -102,7 +103,7 @@ export function Decks() {
         <main className="flex-1 overflow-y-auto p-3">
           <ul className="space-y-2">
             {decks.map((d) => (
-              <DeckRow key={d.id} deck={d} accent={settings.accent} />
+              <DeckRow key={d.id} deck={d} />
             ))}
           </ul>
         </main>

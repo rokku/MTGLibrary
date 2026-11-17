@@ -4,8 +4,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Dialog } from '@headlessui/react';
 import { MapPinIcon, PencilSquareIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { Header } from '../components/Header';
+import { useChoice } from '../components/useChoice';
 import { ManaPips } from '../components/ManaPips';
-import { useSettings } from '../hooks/useSettings';
 import { db, type CatalogueCard, type Condition, type Finish, type OwnedCard } from '../lib/db';
 import { getImageBlob, ensureImage } from '../lib/image-cache';
 import { addCopy, deleteCard, removeCopy, updateCopy } from '../lib/collection';
@@ -50,14 +50,12 @@ function EditCopyModal({
   onClose,
   onSave,
   onDelete,
-  accent,
 }: {
   open: boolean;
   draft: CopyDraft | null;
   onClose: () => void;
   onSave: (d: CopyDraft) => void;
   onDelete?: () => void;
-  accent: string;
 }) {
   const [local, setLocal] = useState<CopyDraft | null>(draft);
   useEffect(() => setLocal(draft), [draft]);
@@ -160,8 +158,7 @@ function EditCopyModal({
             </button>
             <button
               onClick={() => onSave(local)}
-              className="flex-1 rounded-lg py-3 text-sm font-semibold text-black"
-              style={{ backgroundColor: accent }}
+              className="bg-accent flex-1 rounded-lg py-3 text-sm font-semibold text-on-accent"
             >
               Save
             </button>
@@ -175,7 +172,6 @@ function EditCopyModal({
 export function CardDetail() {
   const { catalogueId } = useParams<{ catalogueId: string }>();
   const navigate = useNavigate();
-  const settings = useSettings();
 
   const card = useLiveQuery(() => (catalogueId ? db.catalogue.get(catalogueId) : undefined), [catalogueId]);
   const copies = useLiveQuery(
@@ -186,6 +182,7 @@ export function CardDetail() {
   const imageUrl = useNormalImage(card);
 
   const [editing, setEditing] = useState<CopyDraft | null>(null);
+  const { confirm, dialog } = useChoice();
   const [modalOpen, setModalOpen] = useState(false);
 
   // Return to wherever the card was opened from (library, a binder set, a deck),
@@ -200,7 +197,7 @@ export function CardDetail() {
   if (card === undefined) {
     return (
       <div className="flex h-full flex-col">
-        <Header title="Card" back={goBack} accent={settings.accent} />
+        <Header title="Card" back={goBack} />
         <div className="flex flex-1 items-center justify-center text-neutral-500">Loading…</div>
       </div>
     );
@@ -208,7 +205,7 @@ export function CardDetail() {
   if (card === null) {
     return (
       <div className="flex h-full flex-col">
-        <Header title="Card" back={goBack} accent={settings.accent} />
+        <Header title="Card" back={goBack} />
         <div className="flex flex-1 items-center justify-center text-neutral-500">Card not found.</div>
       </div>
     );
@@ -260,7 +257,7 @@ export function CardDetail() {
   }
 
   async function handleDeleteCard() {
-    if (confirm(`Remove all copies of ${card!.name}?`)) {
+    if (await confirm(`Remove ${card!.name}?`, 'This deletes every copy you own, including tags and notes.', 'Remove all copies')) {
       await deleteCard(card!.id);
       navigate('/');
     }
@@ -271,7 +268,6 @@ export function CardDetail() {
       <Header
         title={card.name}
         back={goBack}
-        accent={settings.accent}
         right={
           totalQty > 0 ? (
             <button onClick={handleDeleteCard} className="tap-target flex items-center justify-center rounded-lg text-red-400 active:bg-surface-2" aria-label="Delete card">
@@ -307,7 +303,7 @@ export function CardDetail() {
             </p>
             {locations.length > 0 && (
               <p className="mt-1.5 flex items-center gap-1.5 text-sm font-medium text-neutral-200">
-                <MapPinIcon className="h-4 w-4 flex-shrink-0" style={{ color: settings.accent }} />
+                <MapPinIcon className="text-accent h-4 w-4 flex-shrink-0" />
                 {locations.join(' · ')}
               </p>
             )}
@@ -363,10 +359,10 @@ export function CardDetail() {
         </div>
       </main>
 
+      {dialog}
       <EditCopyModal
         open={modalOpen}
         draft={editing}
-        accent={settings.accent}
         onClose={() => {
           setModalOpen(false);
           setEditing(null);

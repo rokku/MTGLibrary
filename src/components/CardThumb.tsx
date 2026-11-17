@@ -5,7 +5,6 @@ interface CardThumbProps {
   name: string;
   quantity?: number;
   onClick?: () => void;
-  accent?: string;
 }
 
 /**
@@ -13,7 +12,7 @@ interface CardThumbProps {
  * stack is > 1, per spec). Falls back to a name placeholder if the image is
  * missing (e.g. cleared to free space).
  */
-export function CardThumb({ catalogueId, name, quantity = 1, onClick, accent = '#f59e0b' }: CardThumbProps) {
+export function CardThumb({ catalogueId, name, quantity = 1, onClick }: CardThumbProps) {
   const { url, loading } = useCardImage(catalogueId, 'small');
 
   return (
@@ -32,8 +31,7 @@ export function CardThumb({ catalogueId, name, quantity = 1, onClick, accent = '
       )}
       {quantity > 1 && (
         <span
-          className="absolute right-1 top-1 min-w-[22px] rounded-full px-1.5 py-0.5 text-center text-xs font-bold text-black shadow"
-          style={{ backgroundColor: accent }}
+          className="bg-accent absolute right-1 top-1 min-w-[20px] rounded-full px-1.5 py-px text-center text-[11px] font-bold text-on-accent shadow"
         >
           {quantity}
         </span>

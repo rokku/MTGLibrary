@@ -6,7 +6,6 @@ import { Header } from '../components/Header';
 import { ManaPips } from '../components/ManaPips';
 import { CatalogueThumb } from '../components/CatalogueThumb';
 import { CardHoverCard } from '../components/CardHoverCard';
-import { useSettings } from '../hooks/useSettings';
 import type { CatalogueCard } from '../lib/db';
 import { createDeck, ownedCommanders, searchCommanders, suggestThemes } from '../lib/deck';
 
@@ -42,7 +41,6 @@ function CommanderRow({ card, disabled, onChoose }: { card: CatalogueCard; disab
 /** Step one of a new deck: pick a legendary from your library or the catalogue. */
 export function CommanderPicker() {
   const navigate = useNavigate();
-  const settings = useSettings();
   const [tab, setTab] = useState<'library' | 'search'>('library');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<CatalogueCard[]>([]);
@@ -87,7 +85,7 @@ export function CommanderPicker() {
 
   return (
     <div className="flex h-full flex-col">
-      <Header title="Choose a commander" back="/decks" accent={settings.accent} />
+      <Header title="Choose a commander" back="/decks" />
 
       <div className="flex items-center gap-1 border-b border-surface-2 px-3 py-2">
         {(['library', 'search'] as const).map((t) => (
@@ -105,8 +103,7 @@ export function CommanderPicker() {
           <button
             onClick={chooseRandom}
             disabled={creating}
-            className="tap-target ml-auto flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold text-black disabled:opacity-50"
-            style={{ backgroundColor: settings.accent }}
+            className="bg-accent tap-target ml-auto flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold text-on-accent disabled:opacity-50"
           >
             <SparklesIcon className="h-4 w-4" />
             Surprise me
